@@ -2,8 +2,8 @@
 title: "About"
 ---
 
-Hi, I'm YOUR NAME. I write these notes while studying database systems, mostly following the CMU 15-445/645 lectures by Prof. Andy Pavlo.
+Hi, I'm Randall. I am writing these notes while studying database systems, mostly following the CMU 15-445/645 lectures by Prof. Andy Pavlo. These could help me understand better and ramble more about things i dont really understand. :)
 
 The goal of each post is to make a topic click: natural language, technical depth, plenty of worked examples and diagrams.
 
-Found a mistake or have a suggestion? Get in touch at YOUR CONTACT LINK.
+Found a mistake or have a suggestion? Get in touch at bahduh94@gmail.com

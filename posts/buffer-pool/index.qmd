@@ -1,7 +1,7 @@
 ---
 title: "The Buffer Pool: How a Database Decides What Lives in Memory"
 subtitle: "Notes on CMU 15-445/645 (Fall 2025), Lecture 04"
-author: "YOUR NAME"
+author: "Randall Kharkrang "
 date: "2026-11-03"
 categories: [databases, systems, cmu-15445]
 description: "Frames, page tables, LRU, Clock, ARC, and why databases refuse to let the OS manage their memory."
@@ -9,14 +9,14 @@ image: images/architecture.svg
 ---
 
 ::: {.callout-note appearance="simple"}
-**Watch the lecture this post is based on:** [CMU 15-445/645 Database Systems, Lecture 04: Buffer Pools (Prof. Andy Pavlo)](https://www.youtube.com/watch?v=REPLACE_WITH_YOUR_LINK)
+**Watch the lecture this post is based on:** [CMU 15-445/645 Database Systems, Lecture 04: Buffer Pools (Prof. Andy Pavlo)](https://www.youtube.com/watch?v=8-2yv4z0VZc&list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&index=4)
 
 All the ideas here come from that lecture and its slides. The diagrams, examples and code are my own re-drawings, so any mistakes are mine.
 :::
 
 <!--
 Optional: embed the video directly instead of linking it.
-{{< video https://www.youtube.com/watch?v=REPLACE_WITH_YOUR_LINK >}}
+{{< video https://www.youtube.com/watch?v=8-2yv4z0VZc&list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&index=4>}}
 -->
 
 ## The problem in one sentence
@@ -28,7 +28,7 @@ A database can be far bigger than RAM, but it can only *work on* data that is in
 - and when to write changed pages back to disk.
 
 That something is the **buffer pool manager**. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted.
-
+This blog is mostly a rambling ( with usage of claude to make me sound "legit" about my understanding of buffer pools in DBs in memory)
 ## A desk and a library
 
 The mental model I found most useful:
@@ -515,11 +515,10 @@ A cheat sheet:
 
 ## Where to go next
 
-The next lecture goes back to storage structures: log-structured storage, index-organized storage, and catalogs.
-
+I will be uploading another blog possibly on On disk storage, that deals with the pages, layouts, page directory and much more. That could potentially be a longer blog.
 ## References
 
-- **Lecture video:** [CMU 15-445/645 Database Systems (Fall 2025), Lecture 04: Buffer Pools](https://www.youtube.com/watch?v=REPLACE_WITH_YOUR_LINK), Prof. Andy Pavlo.
+- **Lecture video:** [CMU 15-445/645 Database Systems (Fall 2025), Lecture 04: Buffer Pools](https://www.youtube.com/watch?v=8-2yv4z0VZc&list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&index=4), Prof. Andy Pavlo.
 - **Course website:** [15445.courses.cs.cmu.edu](https://15445.courses.cs.cmu.edu/)
 - Crotty, Leis, Pavlo. *Are You Sure You Want to Use MMAP in Your Database Management System?* CIDR 2022. [db.cs.cmu.edu/mmap-cidr2022](https://db.cs.cmu.edu/mmap-cidr2022)
 - Megiddo, Modha. *ARC: A Self-Tuning, Low Overhead Replacement Cache.* FAST 2003.
