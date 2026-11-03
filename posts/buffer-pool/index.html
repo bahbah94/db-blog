@@ -29,41 +29,6 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for syntax highlighting */
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
 </style>
 
 
@@ -267,16 +232,9 @@ window.Quarto = {
   <li><a href="#the-os-page-cache-and-o_direct" id="toc-the-os-page-cache-and-o_direct" class="nav-link" data-scroll-target="#the-os-page-cache-and-o_direct">The OS page cache and <code>O_DIRECT</code></a></li>
   <li><a href="#the-fsync-horror-story" id="toc-the-fsync-horror-story" class="nav-link" data-scroll-target="#the-fsync-horror-story">The <code>fsync</code> horror story</a></li>
   </ul></li>
-  <li><a href="#four-buffer-pool-optimizations" id="toc-four-buffer-pool-optimizations" class="nav-link" data-scroll-target="#four-buffer-pool-optimizations">Four buffer pool optimizations</a>
-  <ul class="collapse">
-  <li><a href="#multiple-buffer-pools" id="toc-multiple-buffer-pools" class="nav-link" data-scroll-target="#multiple-buffer-pools">1. Multiple buffer pools</a></li>
-  <li><a href="#prefetching" id="toc-prefetching" class="nav-link" data-scroll-target="#prefetching">2. Prefetching</a></li>
-  <li><a href="#scan-sharing-synchronized-scans" id="toc-scan-sharing-synchronized-scans" class="nav-link" data-scroll-target="#scan-sharing-synchronized-scans">3. Scan sharing (synchronized scans)</a></li>
-  <li><a href="#buffer-pool-bypass" id="toc-buffer-pool-bypass" class="nav-link" data-scroll-target="#buffer-pool-bypass">4. Buffer pool bypass</a></li>
-  </ul></li>
-  <li><a href="#try-it-yourself-a-tiny-buffer-pool" id="toc-try-it-yourself-a-tiny-buffer-pool" class="nav-link" data-scroll-target="#try-it-yourself-a-tiny-buffer-pool">Try it yourself: a tiny buffer pool</a></li>
   <li><a href="#the-big-picture" id="toc-the-big-picture" class="nav-link" data-scroll-target="#the-big-picture">The big picture</a></li>
   <li><a href="#where-to-go-next" id="toc-where-to-go-next" class="nav-link" data-scroll-target="#where-to-go-next">Where to go next</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul>
 </nav>
     </div>
@@ -900,117 +858,6 @@ Figure&nbsp;5: ARC. Real pages live in T1 and T2. The ghost lists remember what 
 <p>A DBMS that retries <code>fsync</code> after a failure and trusts the success may believe data is safely on disk when it was actually lost. Lesson: if <code>fsync</code> fails, treat it as fatal; don’t retry and assume.</p>
 </section>
 </section>
-<section id="four-buffer-pool-optimizations" class="level2">
-<h2 class="anchored" data-anchor-id="four-buffer-pool-optimizations">Four buffer pool optimizations</h2>
-<section id="multiple-buffer-pools" class="level3">
-<h3 class="anchored" data-anchor-id="multiple-buffer-pools">1. Multiple buffer pools</h3>
-<p>A system doesn’t always have one giant pool. It may have several instances, a pool per database, or a pool per page type. This reduces <strong>latch contention</strong> (threads fight over a smaller structure, and each pool has its own LRU metadata) and can improve locality.</p>
-<p>How do you decide which pool a page belongs to?</p>
-<div class="cell" data-layout-align="center">
-<div class="cell-output-display">
-<div>
-<p></p><figure class="figure"><p></p>
-<div>
-
-<pre class="mermaid mermaid-js">flowchart LR
-    subgraph A["Approach 1: object id in the record id"]
-        R1["Record id: (ObjectId, PageId, SlotNum)"] --&gt; M["Map ObjectId to a pool"]
-        M --&gt; P1["Buffer pool 1"]
-        M --&gt; P2["Buffer pool 2"]
-    end
-    subgraph B["Approach 2: hashing"]
-        R2["Page id 123"] --&gt; H["hash(123) % n"]
-        H --&gt; P3["Buffer pool 1"]
-        H --&gt; P4["Buffer pool 2"]
-    end
-</pre>
-</div>
-<p></p><figcaption> Two ways to route a request to one of several buffer pools.</figcaption> </figure><p></p>
-</div>
-</div>
-</div>
-</section>
-<section id="prefetching" class="level3">
-<h3 class="anchored" data-anchor-id="prefetching">2. Prefetching</h3>
-<p>Because the DBMS has the plan, it can fetch pages <strong>before</strong> they’re requested.</p>
-<ul>
-<li><strong>Sequential scan:</strong> while the engine processes page 1, the DBMS is already loading pages 2 and 3.</li>
-<li><strong>Index scan:</strong> take <code>SELECT * FROM A WHERE val BETWEEN 100 AND 250</code>. The B+tree tells the DBMS exactly which leaf pages cover that range (say keys 100-199 and 200-299). Those leaves may be scattered across the disk, so the OS cannot guess them from a “read sequentially” pattern, but the DBMS can request them ahead of time.</li>
-</ul>
-<p>Some systems also prefetch to fill empty frames at startup.</p>
-</section>
-<section id="scan-sharing-synchronized-scans" class="level3">
-<h3 class="anchored" data-anchor-id="scan-sharing-synchronized-scans">3. Scan sharing (synchronized scans)</h3>
-<p>Two queries scanning the same table at the same time doing the same disk reads is wasteful. With scan sharing, the second query <strong>attaches to the first one’s cursor</strong>.</p>
-<p>Example:</p>
-<ol type="1">
-<li>Q1 <code>SELECT SUM(val) FROM A</code> starts a scan of pages 0-5 and is currently around page 3.</li>
-<li>Q2 <code>SELECT AVG(val) FROM A</code> arrives. Instead of starting from page 0, it joins Q1’s cursor at page 3.</li>
-<li>Pages 3, 4, 5 are read from disk <strong>once</strong> and used by both.</li>
-<li>Q1 finishes. Q2 wraps around and reads pages 0, 1, 2 on its own.</li>
-</ol>
-<p>This is different from <strong>result caching</strong>: each query still computes its own answer; they just share the physical reads. It’s fully supported in DB2, MSSQL, Teradata and Postgres, while Oracle only supports cursor sharing for identical queries.</p>
-<p>One caveat: a query like <code>SELECT * FROM A LIMIT 100</code> that joins a scan midway sees rows in a different order than if it had started from page 0. That’s fine under SQL semantics when there is no <code>ORDER BY</code>, but it’s a subtle behavior worth knowing.</p>
-</section>
-<section id="buffer-pool-bypass" class="level3">
-<h3 class="anchored" data-anchor-id="buffer-pool-bypass">4. Buffer pool bypass</h3>
-<p>For a big sequential scan, you may not want to put pages in the shared pool at all. The scan operator uses <strong>private memory local to the running query</strong>, so there’s no cache pollution and no bookkeeping overhead. It works well when reading a long run of contiguous pages, and can also be used for temporary data (sorting, joins). Informix calls these <strong>“light scans.”</strong></p>
-</section>
-</section>
-<section id="try-it-yourself-a-tiny-buffer-pool" class="level2">
-<h2 class="anchored" data-anchor-id="try-it-yourself-a-tiny-buffer-pool">Try it yourself: a tiny buffer pool</h2>
-<p>Here is a stripped-down buffer pool in Python so you can see the moving parts. It’s a toy: no threads, no real disk, LRU eviction.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> OrderedDict</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BufferPool:</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, num_frames, disk):</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.num_frames <span class="op">=</span> num_frames</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.disk <span class="op">=</span> disk                    <span class="co"># dict: page_id -&gt; bytes (fake disk)</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.frames <span class="op">=</span> OrderedDict()         <span class="co"># page_id -&gt; Frame, oldest first (LRU order)</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">class</span> Frame:</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, data):</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.data <span class="op">=</span> data</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.dirty <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.pin_count <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> fetch_page(<span class="va">self</span>, page_id):</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HIT: already in memory</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> page_id <span class="kw">in</span> <span class="va">self</span>.frames:</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.frames.move_to_end(page_id)     <span class="co"># mark as most recently used</span></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>            frame <span class="op">=</span> <span class="va">self</span>.frames[page_id]</span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>            frame.pin_count <span class="op">+=</span> <span class="dv">1</span></span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> frame</span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># MISS: make room if needed</span></span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.frames) <span class="op">&gt;=</span> <span class="va">self</span>.num_frames:</span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>._evict_one()</span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>        frame <span class="op">=</span> <span class="va">self</span>.Frame(<span class="va">self</span>.disk[page_id])   <span class="co"># "read from disk"</span></span>
-<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>        frame.pin_count <span class="op">=</span> <span class="dv">1</span></span>
-<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.frames[page_id] <span class="op">=</span> frame</span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> frame</span>
-<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> unpin_page(<span class="va">self</span>, page_id, is_dirty):</span>
-<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>        frame <span class="op">=</span> <span class="va">self</span>.frames[page_id]</span>
-<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>        frame.pin_count <span class="op">-=</span> <span class="dv">1</span></span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>        frame.dirty <span class="op">=</span> frame.dirty <span class="kw">or</span> is_dirty</span>
-<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _evict_one(<span class="va">self</span>):</span>
-<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> page_id, frame <span class="kw">in</span> <span class="va">self</span>.frames.items():   <span class="co"># oldest first</span></span>
-<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> frame.pin_count <span class="op">==</span> <span class="dv">0</span>:                 <span class="co"># never evict pinned pages</span></span>
-<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> frame.dirty:</span>
-<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>                    <span class="va">self</span>.disk[page_id] <span class="op">=</span> frame.data  <span class="co"># slow path: write back</span></span>
-<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>                <span class="kw">del</span> <span class="va">self</span>.frames[page_id]             <span class="co"># fast path: just drop</span></span>
-<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span></span>
-<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="st">"all frames are pinned"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Things to try:</p>
-<ul>
-<li>Make it Clock instead of LRU by replacing the <code>OrderedDict</code> with a list, a hand index and a <code>ref</code> bit.</li>
-<li>Add a sequential scan and watch what happens to a “hot” page (sequential flooding, live).</li>
-<li>Add a <code>scan_ring_size</code> limit so a scan reuses a tiny ring of frames. That’s localization.</li>
-</ul>
-</section>
 <section id="the-big-picture" class="level2">
 <h2 class="anchored" data-anchor-id="the-big-picture">The big picture</h2>
 <p>The conclusion of the lecture fits in two lines:</p>
@@ -1073,22 +920,15 @@ Figure&nbsp;5: ARC. Real pages live in T1 and T2. The ghost lists remember what 
 <td>Executor marks important pages</td>
 <td>Index roots, hot pages</td>
 </tr>
-<tr class="odd">
-<td>Multiple pools</td>
-<td>Partition the pool</td>
-<td>Latch contention</td>
-</tr>
-<tr class="even">
-<td>Prefetch / scan sharing / bypass</td>
-<td>Use the plan</td>
-<td>Fewer, better disk reads</td>
-</tr>
 </tbody>
 </table>
 </section>
 <section id="where-to-go-next" class="level2">
 <h2 class="anchored" data-anchor-id="where-to-go-next">Where to go next</h2>
-<p>I will be uploading another blog possibly on On disk storage, that deals with the pages, layouts, page directory and much more. That could potentially be a longer blog. ## References</p>
+<p>I will be uploading another blog possibly on On disk storage, that deals with the pages, layouts, page directory and much more. That could potentially be a longer blog.</p>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
 <ul>
 <li><strong>Lecture video:</strong> <a href="https://www.youtube.com/watch?v=8-2yv4z0VZc&amp;list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&amp;index=4">CMU 15-445/645 Database Systems (Fall 2025), Lecture 04: Buffer Pools</a>, Prof.&nbsp;Andy Pavlo.</li>
 <li><strong>Course website:</strong> <a href="https://15445.courses.cs.cmu.edu/">15445.courses.cs.cmu.edu</a></li>
@@ -1174,7 +1014,7 @@ Figure&nbsp;5: ARC. Real pages live in T1 and T2. The ghost lists remember what 
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp('/' + window.location.host + '/');
+        var filterRegex = new RegExp("https:\/\/bahbah94\.github\.io\/db-blog\/");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
