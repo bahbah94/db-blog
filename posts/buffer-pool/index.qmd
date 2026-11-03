@@ -29,6 +29,7 @@ A database can be far bigger than RAM, but it can only *work on* data that is in
 
 That something is the **buffer pool manager**. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted.
 This blog is mostly a rambling ( with usage of claude to make me sound "legit" about my understanding of buffer pools in DBs in memory)
+
 ## A desk and a library
 
 The mental model I found most useful:
