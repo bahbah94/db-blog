@@ -1,0 +1,12 @@
+---
+title: "Database Notes"
+subtitle: "How database systems actually work, explained with examples and pictures."
+listing:
+  contents: posts
+  sort: "date desc"
+  type: default
+  categories: true
+  fields: [image, date, title, description, categories]
+page-layout: full
+title-block-banner: true
+---

@@ -1,0 +1,23 @@
+project:
+  type: website
+
+website:
+  title: "Database Notes"
+  description: "Intuitive, example-driven notes on how database systems work."
+  navbar:
+    right:
+      - href: index.qmd
+        text: Home
+      - href: about.qmd
+        text: About
+  page-footer: "Notes based on CMU 15-445/645 and other database resources."
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-title: "On this page"
+    code-copy: true
+    smooth-scroll: true
+    fig-align: center

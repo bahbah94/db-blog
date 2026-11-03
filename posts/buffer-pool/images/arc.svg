@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="28" font-weight="bold" font-size="16">ARC: four lists and a sliding target p</text>
+
+  <!-- B1 ghost -->
+  <rect x="20" y="90" width="150" height="80" rx="8" fill="#fafafa" stroke="#888" stroke-dasharray="6 4" stroke-width="2"/>
+  <text x="95" y="124" text-anchor="middle" font-weight="bold">B1</text>
+  <text x="95" y="144" text-anchor="middle" font-size="12" fill="#555">ghost of T1</text>
+  <text x="95" y="160" text-anchor="middle" font-size="12" fill="#555">(ids only)</text>
+
+  <!-- T1 -->
+  <rect x="190" y="90" width="230" height="80" rx="8" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="305" y="124" text-anchor="middle" font-weight="bold">T1  (recent)</text>
+  <text x="305" y="146" text-anchor="middle" font-size="12" fill="#555">seen exactly once</text>
+
+  <!-- T2 -->
+  <rect x="480" y="90" width="230" height="80" rx="8" fill="#e9f7e9" stroke="#2a8a3a" stroke-width="2"/>
+  <text x="595" y="124" text-anchor="middle" font-weight="bold">T2  (frequent)</text>
+  <text x="595" y="146" text-anchor="middle" font-size="12" fill="#555">seen at least twice</text>
+
+  <!-- B2 ghost -->
+  <rect x="730" y="90" width="150" height="80" rx="8" fill="#fafafa" stroke="#888" stroke-dasharray="6 4" stroke-width="2"/>
+  <text x="805" y="124" text-anchor="middle" font-weight="bold">B2</text>
+  <text x="805" y="144" text-anchor="middle" font-size="12" fill="#555">ghost of T2</text>
+  <text x="805" y="160" text-anchor="middle" font-size="12" fill="#555">(ids only)</text>
+
+  <!-- p marker -->
+  <line x1="450" y1="70" x2="450" y2="200" stroke="#c2410c" stroke-width="3" stroke-dasharray="4 3"/>
+  <text x="450" y="62" text-anchor="middle" fill="#c2410c" font-weight="bold">target p</text>
+  <line x1="450" y1="190" x2="400" y2="190" stroke="#c2410c" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="450" y1="190" x2="500" y2="190" stroke="#c2410c" stroke-width="2" marker-end="url(#arr)"/>
+
+  <text x="305" y="240" text-anchor="middle" font-size="13">hit in B1 =&gt; "I evicted a recent page too early"</text>
+  <text x="305" y="258" text-anchor="middle" font-size="13" fill="#2b4f8c">grow T1 (p goes up)</text>
+  <text x="595" y="240" text-anchor="middle" font-size="13">hit in B2 =&gt; "I evicted a frequent page too early"</text>
+  <text x="595" y="258" text-anchor="middle" font-size="13" fill="#2a8a3a">grow T2 (p goes down)</text>
+
+  <text x="20" y="290" font-size="12" fill="#555">T1 + T2 hold real pages in the buffer pool. B1 + B2 remember only page ids of recent evictions.</text>
+</svg>
