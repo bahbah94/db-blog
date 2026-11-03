@@ -195,6 +195,7 @@ window.Quarto = {
    
   <ul>
   <li><a href="#the-problem-in-one-sentence" id="toc-the-problem-in-one-sentence" class="nav-link active" data-scroll-target="#the-problem-in-one-sentence">The problem in one sentence</a></li>
+  <li><a href="#a-desk-and-a-library" id="toc-a-desk-and-a-library" class="nav-link" data-scroll-target="#a-desk-and-a-library">A desk and a library</a></li>
   <li><a href="#two-kinds-of-control" id="toc-two-kinds-of-control" class="nav-link" data-scroll-target="#two-kinds-of-control">Two kinds of control</a></li>
   <li><a href="#how-the-buffer-pool-is-organized" id="toc-how-the-buffer-pool-is-organized" class="nav-link" data-scroll-target="#how-the-buffer-pool-is-organized">How the buffer pool is organized</a>
   <ul class="collapse">
@@ -268,7 +269,10 @@ Optional: embed the video directly instead of linking it.
 <li>which pages to throw out when memory is full,</li>
 <li>and when to write changed pages back to disk.</li>
 </ul>
-<p>That something is the <strong>buffer pool manager</strong>. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted. This blog is mostly a rambling ( with usage of claude to make me sound “legit” about my understanding of buffer pools in DBs in memory) ## A desk and a library</p>
+<p>That something is the <strong>buffer pool manager</strong>. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted. This blog is mostly a rambling ( with usage of claude to make me sound “legit” about my understanding of buffer pools in DBs in memory)</p>
+</section>
+<section id="a-desk-and-a-library" class="level2">
+<h2 class="anchored" data-anchor-id="a-desk-and-a-library">A desk and a library</h2>
 <p>The mental model I found most useful:</p>
 <ul>
 <li><strong>Disk</strong> is a huge library. It holds everything, but fetching a book takes a long walk.</li>

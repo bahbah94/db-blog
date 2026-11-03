@@ -18,7 +18,14 @@
     "href": "posts/buffer-pool/index.html#the-problem-in-one-sentence",
     "title": "The Buffer Pool: How a Database Decides What Lives in Memory",
     "section": "The problem in one sentence",
-    "text": "The problem in one sentence\nA database can be far bigger than RAM, but it can only work on data that is in RAM. Something has to sit in the middle and decide:\n\nwhich pages to pull into memory,\nwhich pages to throw out when memory is full,\nand when to write changed pages back to disk.\n\nThat something is the buffer pool manager. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted. This blog is mostly a rambling ( with usage of claude to make me sound “legit” about my understanding of buffer pools in DBs in memory) ## A desk and a library\nThe mental model I found most useful:\n\nDisk is a huge library. It holds everything, but fetching a book takes a long walk.\nMemory is your desk. It is small, but anything on it is instantly available.\nThe buffer pool is the desk management strategy: which books stay open, which go back to the shelf, and which you scribbled notes in (and therefore can’t just throw away).\n\nEvery decision in this lecture is a version of “the desk is full and I need space for one more book; what do I put back?”"
+    "text": "The problem in one sentence\nA database can be far bigger than RAM, but it can only work on data that is in RAM. Something has to sit in the middle and decide:\n\nwhich pages to pull into memory,\nwhich pages to throw out when memory is full,\nand when to write changed pages back to disk.\n\nThat something is the buffer pool manager. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted. This blog is mostly a rambling ( with usage of claude to make me sound “legit” about my understanding of buffer pools in DBs in memory)"
+  },
+  {
+    "objectID": "posts/buffer-pool/index.html#a-desk-and-a-library",
+    "href": "posts/buffer-pool/index.html#a-desk-and-a-library",
+    "title": "The Buffer Pool: How a Database Decides What Lives in Memory",
+    "section": "A desk and a library",
+    "text": "A desk and a library\nThe mental model I found most useful:\n\nDisk is a huge library. It holds everything, but fetching a book takes a long walk.\nMemory is your desk. It is small, but anything on it is instantly available.\nThe buffer pool is the desk management strategy: which books stay open, which go back to the shelf, and which you scribbled notes in (and therefore can’t just throw away).\n\nEvery decision in this lecture is a version of “the desk is full and I need space for one more book; what do I put back?”"
   },
   {
     "objectID": "posts/buffer-pool/index.html#two-kinds-of-control",
