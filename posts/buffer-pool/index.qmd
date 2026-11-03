@@ -383,114 +383,6 @@ Here's why "the OS is not your friend" isn't just a slogan:
 
 A DBMS that retries `fsync` after a failure and trusts the success may believe data is safely on disk when it was actually lost. Lesson: if `fsync` fails, treat it as fatal; don't retry and assume.
 
-## Four buffer pool optimizations
-
-### 1. Multiple buffer pools
-
-A system doesn't always have one giant pool. It may have several instances, a pool per database, or a pool per page type. This reduces **latch contention** (threads fight over a smaller structure, and each pool has its own LRU metadata) and can improve locality.
-
-How do you decide which pool a page belongs to?
-
-```{mermaid}
-%%| fig-cap: "Two ways to route a request to one of several buffer pools."
-flowchart LR
-    subgraph A["Approach 1: object id in the record id"]
-        R1["Record id: (ObjectId, PageId, SlotNum)"] --> M["Map ObjectId to a pool"]
-        M --> P1["Buffer pool 1"]
-        M --> P2["Buffer pool 2"]
-    end
-    subgraph B["Approach 2: hashing"]
-        R2["Page id 123"] --> H["hash(123) % n"]
-        H --> P3["Buffer pool 1"]
-        H --> P4["Buffer pool 2"]
-    end
-```
-
-### 2. Prefetching
-
-Because the DBMS has the plan, it can fetch pages **before** they're requested.
-
-- **Sequential scan:** while the engine processes page 1, the DBMS is already loading pages 2 and 3.
-- **Index scan:** take `SELECT * FROM A WHERE val BETWEEN 100 AND 250`. The B+tree tells the DBMS exactly which leaf pages cover that range (say keys 100-199 and 200-299). Those leaves may be scattered across the disk, so the OS cannot guess them from a "read sequentially" pattern, but the DBMS can request them ahead of time.
-
-Some systems also prefetch to fill empty frames at startup.
-
-### 3. Scan sharing (synchronized scans)
-
-Two queries scanning the same table at the same time doing the same disk reads is wasteful. With scan sharing, the second query **attaches to the first one's cursor**.
-
-Example:
-
-1. Q1 `SELECT SUM(val) FROM A` starts a scan of pages 0-5 and is currently around page 3.
-2. Q2 `SELECT AVG(val) FROM A` arrives. Instead of starting from page 0, it joins Q1's cursor at page 3.
-3. Pages 3, 4, 5 are read from disk **once** and used by both.
-4. Q1 finishes. Q2 wraps around and reads pages 0, 1, 2 on its own.
-
-This is different from **result caching**: each query still computes its own answer; they just share the physical reads. It's fully supported in DB2, MSSQL, Teradata and Postgres, while Oracle only supports cursor sharing for identical queries.
-
-One caveat: a query like `SELECT * FROM A LIMIT 100` that joins a scan midway sees rows in a different order than if it had started from page 0. That's fine under SQL semantics when there is no `ORDER BY`, but it's a subtle behavior worth knowing.
-
-### 4. Buffer pool bypass
-
-For a big sequential scan, you may not want to put pages in the shared pool at all. The scan operator uses **private memory local to the running query**, so there's no cache pollution and no bookkeeping overhead. It works well when reading a long run of contiguous pages, and can also be used for temporary data (sorting, joins). Informix calls these **"light scans."**
-
-## Try it yourself: a tiny buffer pool
-
-Here is a stripped-down buffer pool in Python so you can see the moving parts. It's a toy: no threads, no real disk, LRU eviction.
-
-```python
-from collections import OrderedDict
-
-class BufferPool:
-    def __init__(self, num_frames, disk):
-        self.num_frames = num_frames
-        self.disk = disk                    # dict: page_id -> bytes (fake disk)
-        self.frames = OrderedDict()         # page_id -> Frame, oldest first (LRU order)
-
-    class Frame:
-        def __init__(self, data):
-            self.data = data
-            self.dirty = False
-            self.pin_count = 0
-
-    def fetch_page(self, page_id):
-        # HIT: already in memory
-        if page_id in self.frames:
-            self.frames.move_to_end(page_id)     # mark as most recently used
-            frame = self.frames[page_id]
-            frame.pin_count += 1
-            return frame
-
-        # MISS: make room if needed
-        if len(self.frames) >= self.num_frames:
-            self._evict_one()
-
-        frame = self.Frame(self.disk[page_id])   # "read from disk"
-        frame.pin_count = 1
-        self.frames[page_id] = frame
-        return frame
-
-    def unpin_page(self, page_id, is_dirty):
-        frame = self.frames[page_id]
-        frame.pin_count -= 1
-        frame.dirty = frame.dirty or is_dirty
-
-    def _evict_one(self):
-        for page_id, frame in self.frames.items():   # oldest first
-            if frame.pin_count == 0:                 # never evict pinned pages
-                if frame.dirty:
-                    self.disk[page_id] = frame.data  # slow path: write back
-                del self.frames[page_id]             # fast path: just drop
-                return
-        raise RuntimeError("all frames are pinned")
-```
-
-Things to try:
-
-- Make it Clock instead of LRU by replacing the `OrderedDict` with a list, a hand index and a `ref` bit.
-- Add a sequential scan and watch what happens to a "hot" page (sequential flooding, live).
-- Add a `scan_ring_size` limit so a scan reuses a tiny ring of frames. That's localization.
-
 ## The big picture
 
 The conclusion of the lecture fits in two lines:
@@ -510,12 +402,12 @@ A cheat sheet:
 | ARC | Recent + frequent lists with ghosts, self-tuning | Shifting workloads |
 | Localization | Per-query frame budget | One query polluting the pool |
 | Priority hints | Executor marks important pages | Index roots, hot pages |
-| Multiple pools | Partition the pool | Latch contention |
-| Prefetch / scan sharing / bypass | Use the plan | Fewer, better disk reads |
 
 ## Where to go next
 
 I will be uploading another blog possibly on On disk storage, that deals with the pages, layouts, page directory and much more. That could potentially be a longer blog.
+
+
 ## References
 
 - **Lecture video:** [CMU 15-445/645 Database Systems (Fall 2025), Lecture 04: Buffer Pools](https://www.youtube.com/watch?v=8-2yv4z0VZc&list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&index=4), Prof. Andy Pavlo.
