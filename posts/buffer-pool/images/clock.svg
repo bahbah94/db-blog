@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 440" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="hand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+
+  <circle cx="220" cy="220" r="140" fill="none" stroke="#bbb" stroke-width="2" stroke-dasharray="6 6"/>
+
+  <!-- top: page 1 (ref=1) -->
+  <rect x="170" y="50" width="100" height="56" rx="8" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="220" y="74" text-anchor="middle" font-weight="bold">page 1</text>
+  <text x="220" y="94" text-anchor="middle" font-size="12">ref = 1</text>
+
+  <!-- right: page 3 (ref=1) -->
+  <rect x="340" y="192" width="100" height="56" rx="8" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="390" y="216" text-anchor="middle" font-weight="bold">page 3</text>
+  <text x="390" y="236" text-anchor="middle" font-size="12">ref = 1</text>
+
+  <!-- bottom: page 4 (ref=1) -->
+  <rect x="170" y="334" width="100" height="56" rx="8" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="220" y="358" text-anchor="middle" font-weight="bold">page 4</text>
+  <text x="220" y="378" text-anchor="middle" font-size="12">ref = 1</text>
+
+  <!-- left: page 2 (ref=0) -->
+  <rect x="0" y="192" width="100" height="56" rx="8" fill="#ffe0e0" stroke="#c0392b" stroke-width="2"/>
+  <text x="50" y="216" text-anchor="middle" font-weight="bold">page 2</text>
+  <text x="50" y="236" text-anchor="middle" font-size="12">ref = 0</text>
+
+  <!-- hand -->
+  <circle cx="220" cy="220" r="6" fill="#c2410c"/>
+  <line x1="220" y1="220" x2="220" y2="112" stroke="#c2410c" stroke-width="4" marker-end="url(#hand)"/>
+  <text x="232" y="150" fill="#c2410c" font-weight="bold">clock hand</text>
+
+  <!-- direction -->
+  <path d="M 290 99 A 140 140 0 0 1 352 172" fill="none" stroke="#555" stroke-width="2" marker-end="url(#hand)"/>
+  <text x="320" y="88" font-size="12" fill="#555">sweeps clockwise</text>
+
+  <!-- legend -->
+  <text x="470" y="70"  font-weight="bold">The sweep</text>
+  <text x="470" y="96"  font-size="13">1. page 1: ref=1 -> set 0, move on</text>
+  <text x="470" y="120" font-size="13">2. page 3: ref=1 -> set 0, move on</text>
+  <text x="470" y="144" font-size="13">3. page 4: ref=1 -> set 0, move on</text>
+  <text x="470" y="168" font-size="13">4. page 2: ref=0 -> evict it</text>
+  <text x="470" y="210" font-size="12" fill="#555">A page survives only if it was touched</text>
+  <text x="470" y="228" font-size="12" fill="#555">since the last time the hand passed.</text>
+</svg>

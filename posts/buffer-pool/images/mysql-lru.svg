@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 310" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+    <marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a8a3a"/>
+    </marker>
+    <marker id="arro" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="30" font-weight="bold" font-size="16">One linked list, two entry points</text>
+
+  <!-- young -->
+  <rect x="20" y="110" width="400" height="80" rx="10" fill="#e9f7e9" stroke="#2a8a3a" stroke-width="2"/>
+  <text x="220" y="104" text-anchor="middle" fill="#2a8a3a" font-weight="bold">YOUNG list (proven popular)</text>
+  <rect x="34"  y="130" width="80" height="40" rx="6" fill="#fff" stroke="#2a8a3a"/><text x="74"  y="155" text-anchor="middle">p6</text>
+  <rect x="124" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#2a8a3a"/><text x="164" y="155" text-anchor="middle">p2</text>
+  <rect x="214" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#2a8a3a"/><text x="254" y="155" text-anchor="middle">p8</text>
+  <rect x="304" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#2a8a3a"/><text x="344" y="155" text-anchor="middle">p9</text>
+
+  <!-- old -->
+  <rect x="440" y="110" width="440" height="80" rx="10" fill="#fff3e6" stroke="#c2410c" stroke-width="2"/>
+  <text x="660" y="104" text-anchor="middle" fill="#c2410c" font-weight="bold">OLD list (new arrivals, on probation)</text>
+  <rect x="454" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#c2410c"/><text x="494" y="155" text-anchor="middle">p3</text>
+  <rect x="544" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#c2410c"/><text x="584" y="155" text-anchor="middle">p5</text>
+  <rect x="634" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#c2410c"/><text x="674" y="155" text-anchor="middle">p4</text>
+  <rect x="724" y="130" width="80" height="40" rx="6" fill="#fff" stroke="#c2410c"/><text x="764" y="155" text-anchor="middle">p7</text>
+
+  <text x="40" y="214" font-size="12" fill="#555">young head (newest)</text>
+  <text x="780" y="214" text-anchor="end" font-size="12" fill="#555">tail (evict from here)</text>
+  <text x="456" y="214" font-size="12" fill="#555">old head</text>
+
+  <!-- arrows: new page -> old head -->
+  <line x1="494" y1="268" x2="494" y2="174" stroke="#c2410c" stroke-width="2" marker-end="url(#arro)"/>
+  <text x="506" y="250" fill="#c2410c" font-size="13">brand-new page from disk</text>
+  <text x="506" y="268" fill="#c2410c" font-size="13">enters here, NOT at the front</text>
+
+  <!-- arrow: old hit -> young head (curved) -->
+  <path d="M 584 126 C 584 50, 74 50, 74 126" fill="none" stroke="#2a8a3a" stroke-width="2" marker-end="url(#arrg)"/>
+  <text x="330" y="62" text-anchor="middle" fill="#2a8a3a" font-size="13">touched again while in OLD -> promoted to the head of YOUNG</text>
+</svg>

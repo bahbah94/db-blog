@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.11.9">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Randall Kharkrang">
+<meta name="dcterms.date" content="2026-11-03">
+<meta name="description" content="Frames, page tables, LRU, Clock, ARC, and why databases refuse to let the OS manage their memory.">
+
+<title>The Buffer Pool: How a Database Decides What Lives in Memory – Database Notes</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-56996c7b5257095e64120a8d6d543cad.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<script src="../../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Database Notes</span>
+    </a>
+  </div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+            <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">The Buffer Pool: How a Database Decides What Lives in Memory</h1>
+            <p class="subtitle lead">Notes on CMU 15-445/645 (Fall 2025), Lecture 04</p>
+                  <div>
+        <div class="description">
+          Frames, page tables, LRU, Clock, ARC, and why databases refuse to let the OS manage their memory.
+        </div>
+      </div>
+                          <div class="quarto-categories">
+                <div class="quarto-category">databases</div>
+                <div class="quarto-category">systems</div>
+                <div class="quarto-category">cmu-15445</div>
+              </div>
+                  </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Randall Kharkrang </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">November 3, 2026</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#the-problem-in-one-sentence" id="toc-the-problem-in-one-sentence" class="nav-link active" data-scroll-target="#the-problem-in-one-sentence">The problem in one sentence</a></li>
+  <li><a href="#two-kinds-of-control" id="toc-two-kinds-of-control" class="nav-link" data-scroll-target="#two-kinds-of-control">Two kinds of control</a></li>
+  <li><a href="#how-the-buffer-pool-is-organized" id="toc-how-the-buffer-pool-is-organized" class="nav-link" data-scroll-target="#how-the-buffer-pool-is-organized">How the buffer pool is organized</a>
+  <ul class="collapse">
+  <li><a href="#writes-are-lazy-write-back-cache" id="toc-writes-are-lazy-write-back-cache" class="nav-link" data-scroll-target="#writes-are-lazy-write-back-cache">Writes are lazy (write-back cache)</a></li>
+  </ul></li>
+  <li><a href="#the-metadata-that-makes-it-work" id="toc-the-metadata-that-makes-it-work" class="nav-link" data-scroll-target="#the-metadata-that-makes-it-work">The metadata that makes it work</a>
+  <ul class="collapse">
+  <li><a href="#page-table-vs.-page-directory-easy-to-mix-up" id="toc-page-table-vs.-page-directory-easy-to-mix-up" class="nav-link" data-scroll-target="#page-table-vs.-page-directory-easy-to-mix-up">Page table vs.&nbsp;page directory (easy to mix up)</a></li>
+  <li><a href="#locks-vs.-latches" id="toc-locks-vs.-latches" class="nav-link" data-scroll-target="#locks-vs.-latches">Locks vs.&nbsp;latches</a></li>
+  <li><a href="#the-buffer-pool-isnt-the-only-memory-pool" id="toc-the-buffer-pool-isnt-the-only-memory-pool" class="nav-link" data-scroll-target="#the-buffer-pool-isnt-the-only-memory-pool">The buffer pool isn’t the only memory pool</a></li>
+  </ul></li>
+  <li><a href="#why-not-just-use-the-os-mmap" id="toc-why-not-just-use-the-os-mmap" class="nav-link" data-scroll-target="#why-not-just-use-the-os-mmap">“Why not just use the OS?” (mmap)</a></li>
+  <li><a href="#replacement-policies-who-gets-evicted" id="toc-replacement-policies-who-gets-evicted" class="nav-link" data-scroll-target="#replacement-policies-who-gets-evicted">Replacement policies: who gets evicted?</a>
+  <ul class="collapse">
+  <li><a href="#lru-least-recently-used-1965" id="toc-lru-least-recently-used-1965" class="nav-link" data-scroll-target="#lru-least-recently-used-1965">LRU: Least Recently Used (1965)</a></li>
+  <li><a href="#clock-1969-lru-on-a-budget" id="toc-clock-1969-lru-on-a-budget" class="nav-link" data-scroll-target="#clock-1969-lru-on-a-budget">Clock (1969): LRU on a budget</a></li>
+  <li><a href="#the-weakness-sequential-flooding" id="toc-the-weakness-sequential-flooding" class="nav-link" data-scroll-target="#the-weakness-sequential-flooding">The weakness: sequential flooding</a></li>
+  <li><a href="#lfu-least-frequently-used-1971" id="toc-lfu-least-frequently-used-1971" class="nav-link" data-scroll-target="#lfu-least-frequently-used-1971">LFU: Least Frequently Used (1971)</a></li>
+  <li><a href="#lru-k-1993-use-the-history" id="toc-lru-k-1993-use-the-history" class="nav-link" data-scroll-target="#lru-k-1993-use-the-history">LRU-K (1993): use the history</a></li>
+  <li><a href="#mysqls-approximate-lru-k" id="toc-mysqls-approximate-lru-k" class="nav-link" data-scroll-target="#mysqls-approximate-lru-k">MySQL’s approximate LRU-K</a></li>
+  <li><a href="#arc-adaptive-replacement-cache-2003" id="toc-arc-adaptive-replacement-cache-2003" class="nav-link" data-scroll-target="#arc-adaptive-replacement-cache-2003">ARC: Adaptive Replacement Cache (2003)</a></li>
+  </ul></li>
+  <li><a href="#smarter-policies-using-what-the-dbms-knows" id="toc-smarter-policies-using-what-the-dbms-knows" class="nav-link" data-scroll-target="#smarter-policies-using-what-the-dbms-knows">Smarter policies using what the DBMS knows</a>
+  <ul class="collapse">
+  <li><a href="#localization" id="toc-localization" class="nav-link" data-scroll-target="#localization">Localization</a></li>
+  <li><a href="#priority-hints" id="toc-priority-hints" class="nav-link" data-scroll-target="#priority-hints">Priority hints</a></li>
+  </ul></li>
+  <li><a href="#dirty-pages-fast-path-vs-slow-path" id="toc-dirty-pages-fast-path-vs-slow-path" class="nav-link" data-scroll-target="#dirty-pages-fast-path-vs-slow-path">Dirty pages: fast path vs slow path</a>
+  <ul class="collapse">
+  <li><a href="#background-writing" id="toc-background-writing" class="nav-link" data-scroll-target="#background-writing">Background writing</a></li>
+  </ul></li>
+  <li><a href="#taking-disk-io-away-from-the-os" id="toc-taking-disk-io-away-from-the-os" class="nav-link" data-scroll-target="#taking-disk-io-away-from-the-os">Taking disk I/O away from the OS</a>
+  <ul class="collapse">
+  <li><a href="#io-scheduling" id="toc-io-scheduling" class="nav-link" data-scroll-target="#io-scheduling">I/O scheduling</a></li>
+  <li><a href="#the-os-page-cache-and-o_direct" id="toc-the-os-page-cache-and-o_direct" class="nav-link" data-scroll-target="#the-os-page-cache-and-o_direct">The OS page cache and <code>O_DIRECT</code></a></li>
+  <li><a href="#the-fsync-horror-story" id="toc-the-fsync-horror-story" class="nav-link" data-scroll-target="#the-fsync-horror-story">The <code>fsync</code> horror story</a></li>
+  </ul></li>
+  <li><a href="#four-buffer-pool-optimizations" id="toc-four-buffer-pool-optimizations" class="nav-link" data-scroll-target="#four-buffer-pool-optimizations">Four buffer pool optimizations</a>
+  <ul class="collapse">
+  <li><a href="#multiple-buffer-pools" id="toc-multiple-buffer-pools" class="nav-link" data-scroll-target="#multiple-buffer-pools">1. Multiple buffer pools</a></li>
+  <li><a href="#prefetching" id="toc-prefetching" class="nav-link" data-scroll-target="#prefetching">2. Prefetching</a></li>
+  <li><a href="#scan-sharing-synchronized-scans" id="toc-scan-sharing-synchronized-scans" class="nav-link" data-scroll-target="#scan-sharing-synchronized-scans">3. Scan sharing (synchronized scans)</a></li>
+  <li><a href="#buffer-pool-bypass" id="toc-buffer-pool-bypass" class="nav-link" data-scroll-target="#buffer-pool-bypass">4. Buffer pool bypass</a></li>
+  </ul></li>
+  <li><a href="#try-it-yourself-a-tiny-buffer-pool" id="toc-try-it-yourself-a-tiny-buffer-pool" class="nav-link" data-scroll-target="#try-it-yourself-a-tiny-buffer-pool">Try it yourself: a tiny buffer pool</a></li>
+  <li><a href="#the-big-picture" id="toc-the-big-picture" class="nav-link" data-scroll-target="#the-big-picture">The big picture</a></li>
+  <li><a href="#where-to-go-next" id="toc-where-to-go-next" class="nav-link" data-scroll-target="#where-to-go-next">Where to go next</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content quarto-banner-title-block" id="quarto-document-content" tabindex="-1">
+
+
+
+
+
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Watch the lecture this post is based on:</strong> <a href="https://www.youtube.com/watch?v=8-2yv4z0VZc&amp;list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&amp;index=4">CMU 15-445/645 Database Systems, Lecture 04: Buffer Pools (Prof.&nbsp;Andy Pavlo)</a></p>
+<p>All the ideas here come from that lecture and its slides. The diagrams, examples and code are my own re-drawings, so any mistakes are mine.</p>
+</div>
+</div>
+</div>
+<!--
+Optional: embed the video directly instead of linking it.
+
+-->
+<section id="the-problem-in-one-sentence" class="level2">
+<h2 class="anchored" data-anchor-id="the-problem-in-one-sentence">The problem in one sentence</h2>
+<p>A database can be far bigger than RAM, but it can only <em>work on</em> data that is in RAM. Something has to sit in the middle and decide:</p>
+<ul>
+<li>which pages to pull into memory,</li>
+<li>which pages to throw out when memory is full,</li>
+<li>and when to write changed pages back to disk.</li>
+</ul>
+<p>That something is the <strong>buffer pool manager</strong>. This post walks through how it works, why it is almost always a better manager than the operating system, and the replacement policies (LRU, Clock, LRU-K, ARC and friends) that decide who gets evicted. This blog is mostly a rambling ( with usage of claude to make me sound “legit” about my understanding of buffer pools in DBs in memory) ## A desk and a library</p>
+<p>The mental model I found most useful:</p>
+<ul>
+<li><strong>Disk</strong> is a huge library. It holds everything, but fetching a book takes a long walk.</li>
+<li><strong>Memory</strong> is your desk. It is small, but anything on it is instantly available.</li>
+<li>The <strong>buffer pool</strong> is the <em>desk management strategy</em>: which books stay open, which go back to the shelf, and which you scribbled notes in (and therefore can’t just throw away).</li>
+</ul>
+<p>Every decision in this lecture is a version of “the desk is full and I need space for one more book; what do I put back?”</p>
+</section>
+<section id="two-kinds-of-control" class="level2">
+<h2 class="anchored" data-anchor-id="two-kinds-of-control">Two kinds of control</h2>
+<p>The lecture frames the whole storage layer with two ideas:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Question it answers</th>
+<th>Goal</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Spatial control</strong></td>
+<td><em>Where</em> on disk do we write pages?</td>
+<td>Keep pages that are used together physically close, so reads are sequential.</td>
+</tr>
+<tr class="even">
+<td><strong>Temporal control</strong></td>
+<td><em>When</em> do we read pages into memory and write them back?</td>
+<td>Minimize the number of times a query stalls waiting for disk.</td>
+</tr>
+</tbody>
+</table>
+<p>Last lecture was mostly spatial (how pages are laid out in files). This lecture is temporal.</p>
+</section>
+<section id="how-the-buffer-pool-is-organized" class="level2">
+<h2 class="anchored" data-anchor-id="how-the-buffer-pool-is-organized">How the buffer pool is organized</h2>
+<p>The buffer pool is just a big chunk of memory split into an array of <strong>fixed-size slots called frames</strong>. Each frame can hold exactly one page (same size as a disk page, commonly 4 KB to 16 KB depending on the system).</p>
+<div id="fig-arch" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Diagram of an execution engine, a buffer pool with four frames, and a disk containing a directory and five pages. Arrows show a page request, a copy from disk, and a pointer returned.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-arch-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/architecture.svg" class="img-fluid figure-img" alt="Diagram of an execution engine, a buffer pool with four frames, and a disk containing a directory and five pages. Arrows show a page request, a copy from disk, and a pointer returned.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-arch-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: One request through the system: the execution engine asks the buffer pool for page 2. On a miss, the page is copied from disk into a free frame and a pointer to that frame is handed back.
+</figcaption>
+</figure>
+</div>
+<p>Let’s trace what happens in <a href="#fig-arch" class="quarto-xref">Figure&nbsp;1</a>:</p>
+<ol type="1">
+<li>The execution engine says “I need page 2.”</li>
+<li>The buffer pool checks whether page 2 is already in a frame. If not, it copies an <strong>exact copy</strong> of the page from disk into a free frame.</li>
+<li>It returns a <strong>pointer to the frame</strong>. The engine reads or modifies the bytes directly in memory.</li>
+</ol>
+<p>Notice what the engine never does: it never talks to the disk itself. Everything goes through the buffer pool.</p>
+<section id="writes-are-lazy-write-back-cache" class="level3">
+<h3 class="anchored" data-anchor-id="writes-are-lazy-write-back-cache">Writes are lazy (write-back cache)</h3>
+<p>If a query modifies page 2, the DBMS does <strong>not</strong> write it to disk immediately. It modifies the in-memory copy and marks the frame as <strong>dirty</strong>. The write to disk happens later (on eviction, or by a background writer). This is called a <strong>write-back cache</strong>, and it is a big reason databases are fast: ten updates to the same page cost one disk write, not ten.</p>
+</section>
+</section>
+<section id="the-metadata-that-makes-it-work" class="level2">
+<h2 class="anchored" data-anchor-id="the-metadata-that-makes-it-work">The metadata that makes it work</h2>
+<p>A frame by itself is just bytes. The buffer pool keeps extra bookkeeping so it can answer questions quickly.</p>
+<div id="fig-pagetable" class="quarto-float quarto-figure quarto-figure-center anchored" alt="A page table with three entries pointing to frames, with each frame labeled with dirty flag, pin count and last access time. One frame is free.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pagetable-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/page-table.svg" class="img-fluid figure-img" alt="A page table with three entries pointing to frames, with each frame labeled with dirty flag, pin count and last access time. One frame is free.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pagetable-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: The page table maps page ids to frames. Each frame carries metadata: a dirty flag, a pin counter, and access-tracking info used by the replacement policy.
+</figcaption>
+</figure>
+</div>
+<p><strong>The page table</strong> is an in-memory hash table: <code>page_id -&gt; frame</code>. When someone asks for page 3, we hash, look it up, and either find the frame (a <strong>hit</strong>) or don’t (a <strong>miss</strong>).</p>
+<p><strong>Per-frame metadata:</strong></p>
+<ul>
+<li><strong>Dirty flag.</strong> “This page was modified and the disk copy is stale.”</li>
+<li><strong>Pin / reference counter.</strong> “Someone is using this page right now.” A pinned page must never be evicted. Imagine a query is halfway through reading a page and the buffer pool yanks it away; that would be a disaster. Pin on the way in, unpin when done.</li>
+<li><strong>Access tracking info.</strong> Timestamps, reference bits, or access counts, whatever the replacement policy needs.</li>
+</ul>
+<p>Putting it all together, here is the full life of a page request:</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    A["Engine asks for page 42"] --&gt; B{"In page table?"}
+    B -- "yes (hit)" --&gt; C["Pin the frame, return pointer"]
+    B -- "no (miss)" --&gt; D{"Free frame?"}
+    D -- "yes" --&gt; G["Read page 42 from disk into the frame"]
+    D -- "no" --&gt; E["Pick a victim with the replacement policy (never a pinned frame)"]
+    E --&gt; F{"Victim dirty?"}
+    F -- "yes (slow path)" --&gt; H["Write victim to disk"]
+    F -- "no (fast path)" --&gt; I["Just drop it"]
+    H --&gt; I
+    I --&gt; G
+    G --&gt; C
+</pre>
+</div>
+<p></p><figcaption> Life of a page request inside the buffer pool manager.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<section id="page-table-vs.-page-directory-easy-to-mix-up" class="level3">
+<h3 class="anchored" data-anchor-id="page-table-vs.-page-directory-easy-to-mix-up">Page table vs.&nbsp;page directory (easy to mix up)</h3>
+<p>These sound alike but are different things:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Page <strong>directory</strong></th>
+<th>Page <strong>table</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Maps</td>
+<td>page id -&gt; <em>location in the database files on disk</em></td>
+<td>page id -&gt; <em>frame in the buffer pool</em></td>
+</tr>
+<tr class="even">
+<td>Lives</td>
+<td>On disk (must survive restart)</td>
+<td>In memory only (rebuilt from nothing after a restart)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="locks-vs.-latches" class="level3">
+<h3 class="anchored" data-anchor-id="locks-vs.-latches">Locks vs.&nbsp;latches</h3>
+<p>Another pair of words people conflate. Many threads hit the page table at the same time, so it needs protection, but not with the same thing that protects your rows.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Lock</strong></th>
+<th><strong>Latch</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Protects</td>
+<td>Logical database contents (rows, tables) from other <em>transactions</em></td>
+<td>Internal data structures (like the page table) from other <em>threads</em></td>
+</tr>
+<tr class="even">
+<td>Held for</td>
+<td>The duration of a transaction</td>
+<td>The duration of a single operation (microseconds)</td>
+</tr>
+<tr class="odd">
+<td>Rollback needed?</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>A latch is basically a mutex. Think of a lock as “don’t touch my row” and a latch as “don’t touch this hash table while I’m halfway through updating it.”</p>
+</section>
+<section id="the-buffer-pool-isnt-the-only-memory-pool" class="level3">
+<h3 class="anchored" data-anchor-id="the-buffer-pool-isnt-the-only-memory-pool">The buffer pool isn’t the only memory pool</h3>
+<p>The DBMS uses memory for lots of other things too, and these may or may not be backed by disk: sort and join buffers, query caches, maintenance buffers, log buffers, dictionary caches. This lecture is about the one that caches table and index pages.</p>
+</section>
+</section>
+<section id="why-not-just-use-the-os-mmap" class="level2">
+<h2 class="anchored" data-anchor-id="why-not-just-use-the-os-mmap">“Why not just use the OS?” (mmap)</h2>
+<p>This is the question every student asks, so let’s take it seriously.</p>
+<p><code>mmap</code> lets a program map a file into its address space. You then read and write the file as if it were a plain array in memory, and the OS handles moving pages between disk and RAM. No buffer pool to write. Sounds perfect.</p>
+<p>The trouble starts when the file is bigger than RAM and you have multiple threads. The OS decides which pages stay and which go, and it knows nothing about your queries.</p>
+<p>The lecture lists the problems:</p>
+<ol type="1">
+<li><strong>Transaction safety.</strong> The OS can flush a dirty page to disk <em>at any moment</em>, including before the matching log record is written. That breaks the rule that the log must hit disk first (write-ahead logging).</li>
+<li><strong>I/O stalls.</strong> The DBMS doesn’t know which pages are in memory. A touch on an evicted page triggers a page fault and the OS silently blocks your thread while it reads from disk. The DBMS can’t do something smarter in the meantime.</li>
+<li><strong>Error handling.</strong> With a buffer pool you can validate a page after reading it and handle failures right there. With mmap, <em>any</em> memory access can fail with a <code>SIGBUS</code> signal that you have to handle.</li>
+<li><strong>Performance issues.</strong> Contention on OS-internal data structures and costly TLB shootdowns when many threads are involved.</li>
+</ol>
+<p>“But Linux gives me knobs!” It does:</p>
+<ul>
+<li><code>madvise</code>: hint how you’ll access a range of pages.</li>
+<li><code>mlock</code>: pin a range in memory so it can’t be paged out.</li>
+<li><code>msync</code>: force a range to be flushed to disk.</li>
+</ul>
+<p>The lecture’s point is that using these to coax the OS into behaving is <em>just as much work</em> as managing memory yourself, and you still get less control.</p>
+<p>What the DBMS can do better than the OS, because it knows the query plan:</p>
+<ul>
+<li>flush dirty pages in the <strong>correct order</strong>,</li>
+<li>do <strong>specialized prefetching</strong>,</li>
+<li>choose a smarter <strong>replacement policy</strong>,</li>
+<li>do its own <strong>thread scheduling</strong>.</li>
+</ul>
+<p>The lecture’s slogan is “the OS is not your friend.” (The paper it points to is <em>Are You Sure You Want to Use MMAP in Your Database Management System?</em> from CIDR 2022, linked in the references below.)</p>
+</section>
+<section id="replacement-policies-who-gets-evicted" class="level2">
+<h2 class="anchored" data-anchor-id="replacement-policies-who-gets-evicted">Replacement policies: who gets evicted?</h2>
+<p>The buffer pool is full and a new page is needed. Which frame do we reuse? A good policy is judged on:</p>
+<ul>
+<li><strong>Correctness.</strong> Never evict a pinned page.</li>
+<li><strong>Accuracy.</strong> Evict pages you won’t need soon.</li>
+<li><strong>Speed.</strong> Picking a victim shouldn’t be slow.</li>
+<li><strong>Metadata overhead.</strong> Tracking shouldn’t eat too much memory.</li>
+</ul>
+<section id="lru-least-recently-used-1965" class="level3">
+<h3 class="anchored" data-anchor-id="lru-least-recently-used-1965">LRU: Least Recently Used (1965)</h3>
+<p>The idea is that a page used recently will likely be used again soon, so evict the one touched <em>longest ago</em>. Keep pages in an ordered list; every access moves the page to the “newest” end; evict from the “oldest” end.</p>
+<p>A quick trace with a pool of 3 frames (oldest on the left):</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Access</th>
+<th>Result</th>
+<th>Pool (oldest -&gt; newest)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A</td>
+<td>miss</td>
+<td>A</td>
+</tr>
+<tr class="even">
+<td>B</td>
+<td>miss</td>
+<td>A B</td>
+</tr>
+<tr class="odd">
+<td>C</td>
+<td>miss</td>
+<td>A B C</td>
+</tr>
+<tr class="even">
+<td>A</td>
+<td>hit (A moves to newest)</td>
+<td>B C A</td>
+</tr>
+<tr class="odd">
+<td>D</td>
+<td>miss, evict <strong>B</strong> (oldest)</td>
+<td>C A D</td>
+</tr>
+</tbody>
+</table>
+<p>Simple and intuitive. It has one nasty weakness, which we will get to shortly.</p>
+</section>
+<section id="clock-1969-lru-on-a-budget" class="level3">
+<h3 class="anchored" data-anchor-id="clock-1969-lru-on-a-budget">Clock (1969): LRU on a budget</h3>
+<p>Keeping an exact timestamp ordering for every page is expensive. <strong>Clock</strong> approximates LRU with just <strong>one bit per page</strong>.</p>
+<ul>
+<li>Each page has a <strong>reference bit</strong>. Whenever the page is accessed, set it to 1.</li>
+<li>Pages sit in a circle with a “clock hand”.</li>
+<li>To find a victim, sweep the hand: if the bit is <strong>1</strong>, set it to <strong>0</strong> and move on (a second chance). If the bit is <strong>0</strong>, evict it.</li>
+</ul>
+<div id="fig-clock" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Four pages arranged in a circle with reference bits and a clock hand pointing at the top page.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-clock-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/clock.svg" class="img-fluid figure-img" alt="Four pages arranged in a circle with reference bits and a clock hand pointing at the top page.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-clock-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: A Clock snapshot: pages 1, 3 and 4 were touched since the last sweep, page 2 was not. The hand clears three bits and then evicts page 2.
+</figcaption>
+</figure>
+</div>
+<p>In <a href="#fig-clock" class="quarto-xref">Figure&nbsp;3</a> the hand starts at page 1 (bit 1, so it’s cleared), then page 3 (cleared), then page 4 (cleared), and finally page 2 has bit 0, so page 2 is evicted. A page only survives if it was touched since the last time the hand passed by.</p>
+<p>Cheap, no sorting, no timestamps. That’s why variants of Clock show up in real systems.</p>
+</section>
+<section id="the-weakness-sequential-flooding" class="level3">
+<h3 class="anchored" data-anchor-id="the-weakness-sequential-flooding">The weakness: sequential flooding</h3>
+<p>LRU and Clock share a blind spot. Imagine this workload with a pool of 3 frames and a table of 6 pages:</p>
+<ul>
+<li><strong>Q1:</strong> <code>SELECT * FROM A WHERE id = 1</code> reads page 0 (a “hot” page we use constantly).</li>
+<li><strong>Q2:</strong> <code>SELECT AVG(val) FROM A</code> scans <strong>every</strong> page, 0 to 5, once.</li>
+<li><strong>Q3:</strong> <code>SELECT * FROM A WHERE id = 1</code> again, wants page 0.</li>
+</ul>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Access</th>
+<th>Result</th>
+<th>Pool (oldest -&gt; newest)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Q1: p0</td>
+<td>miss</td>
+<td>0</td>
+</tr>
+<tr class="even">
+<td>Q2: p0</td>
+<td>hit</td>
+<td>0</td>
+</tr>
+<tr class="odd">
+<td>Q2: p1</td>
+<td>miss</td>
+<td>0 1</td>
+</tr>
+<tr class="even">
+<td>Q2: p2</td>
+<td>miss</td>
+<td>0 1 2</td>
+</tr>
+<tr class="odd">
+<td>Q2: p3</td>
+<td>miss, evict p0</td>
+<td>1 2 3</td>
+</tr>
+<tr class="even">
+<td>Q2: p4</td>
+<td>miss, evict p1</td>
+<td>2 3 4</td>
+</tr>
+<tr class="odd">
+<td>Q2: p5</td>
+<td>miss, evict p2</td>
+<td>3 4 5</td>
+</tr>
+<tr class="even">
+<td><strong>Q3: p0</strong></td>
+<td><strong>miss</strong>, p0 was flushed out by the scan</td>
+<td>4 5 0</td>
+</tr>
+</tbody>
+</table>
+<p>The scan pushed out the one page we actually cared about, and replaced it with pages (3, 4, 5) that will never be read again. That’s <strong>sequential flooding</strong>: a scan <em>pollutes</em> the buffer pool with read-once pages.</p>
+<p>It gets worse with loops. If a query repeatedly scans 4 pages in a loop with a 3-frame pool, LRU always evicts the page that will be needed <em>next</em>. I ran a quick simulation of 12 accesses (three passes over pages 0 to 3):</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Policy</th>
+<th>Hits out of 12</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>LRU</td>
+<td><strong>0</strong></td>
+</tr>
+<tr class="even">
+<td>MRU (evict most recently used)</td>
+<td><strong>6</strong></td>
+</tr>
+</tbody>
+</table>
+<p>That’s the lecture’s observation: in many analytical (OLAP) workloads, the <em>most</em> recently used page is often the best one to evict. The DBMS knows it is doing a scan, so it should act accordingly. We’ll see how below.</p>
+</section>
+<section id="lfu-least-frequently-used-1971" class="level3">
+<h3 class="anchored" data-anchor-id="lfu-least-frequently-used-1971">LFU: Least Frequently Used (1971)</h3>
+<p>If “recent” isn’t enough, count <em>how often</em> a page is accessed and evict the lowest count. That recognizes that the hot page 0 above is touched a lot.</p>
+<p>But LFU has its own problems:</p>
+<ul>
+<li>Keeping pages ordered by count costs logarithmic time relative to the cache size.</li>
+<li>It <strong>ignores time</strong>. A page that was hammered last week has a huge count and sits in memory forever, even if nobody wants it anymore.</li>
+</ul>
+</section>
+<section id="lru-k-1993-use-the-history" class="level3">
+<h3 class="anchored" data-anchor-id="lru-k-1993-use-the-history">LRU-K (1993): use the history</h3>
+<p>LRU only looks at the <em>last</em> access. LRU-K remembers the last <strong>K</strong> access timestamps for each page, and uses the K-th most recent one to estimate when the page will be used next. The score is the <strong>backward distance</strong>:</p>
+<p><span class="math display">\[
+\text{backward distance} = \text{current time} - K\text{-th most recent access}
+\]</span></p>
+<p>Pages with fewer than K accesses have an infinite backward distance, so they are evicted first (oldest first-access breaks ties). That is exactly what prevents one-time scan pages from kicking out genuinely popular pages.</p>
+<p>A small example with <strong>K = 2</strong> and 3 frames. The pool holds A, B, C, and page D now arrives at time 5:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Time</th>
+<th>Access</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>A</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>A</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>B</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>C</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>D (pool is full, need a victim)</td>
+</tr>
+</tbody>
+</table>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Page</th>
+<th>Last two accesses</th>
+<th>2nd most recent</th>
+<th>Backward distance</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A</td>
+<td>t1, t2</td>
+<td>t1</td>
+<td>5 - 1 = <strong>4</strong></td>
+</tr>
+<tr class="even">
+<td>B</td>
+<td>t3</td>
+<td>none</td>
+<td><strong>infinity</strong></td>
+</tr>
+<tr class="odd">
+<td>C</td>
+<td>t4</td>
+<td>none</td>
+<td><strong>infinity</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Both B and C have infinite distance; the earlier first access is B, so <strong>B is evicted</strong>. Plain LRU would have picked <strong>A</strong> (last touched at t2, the oldest) even though A is the only page touched more than once. LRU-K protects it.</p>
+<p>The lecture also mentions keeping an in-memory <strong>ghost cache</strong> of recently evicted pages’ history, so a page that was just evicted doesn’t instantly lose all the evidence that it mattered.</p>
+</section>
+<section id="mysqls-approximate-lru-k" class="level3">
+<h3 class="anchored" data-anchor-id="mysqls-approximate-lru-k">MySQL’s approximate LRU-K</h3>
+<p>True LRU-K is somewhat heavy, so MySQL (InnoDB) approximates it with a neat trick: <strong>one linked list with two entry points.</strong></p>
+<div id="fig-mysql" class="quarto-float quarto-figure quarto-figure-center anchored" alt="A single linked list split into a young section and an old section, with arrows showing where new pages enter and where promoted pages go.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mysql-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/mysql-lru.svg" class="img-fluid figure-img" alt="A single linked list split into a young section and an old section, with arrows showing where new pages enter and where promoted pages go.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mysql-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: MySQL’s approximation. New pages enter at the head of the OLD part. Only when they are accessed a second time do they get promoted to the head of the YOUNG part.
+</figcaption>
+</figure>
+</div>
+<ul>
+<li>A brand-new page is inserted at the head of the <strong>old</strong> section, not the front of the whole list.</li>
+<li>If it’s touched again while in the old section, it gets promoted to the head of the <strong>young</strong> section.</li>
+<li>Evictions come from the tail of the old section.</li>
+</ul>
+<p>So a page read once by a big scan drifts through the old section and gets evicted without ever disturbing the young, proven-popular pages. A page that gets accessed twice earns its place. That’s “K = 2” behavior with just a linked list. (In InnoDB the old section is roughly the last 3/8 of the list by default; it’s tunable.)</p>
+</section>
+<section id="arc-adaptive-replacement-cache-2003" class="level3">
+<h3 class="anchored" data-anchor-id="arc-adaptive-replacement-cache-2003">ARC: Adaptive Replacement Cache (2003)</h3>
+<p>What if the best balance between “recent” and “frequent” changes with the workload? <strong>ARC</strong> (from IBM Research) learns it on the fly. The lecture notes it’s used in IBM DB2 and ZFS, and PostgreSQL had a rewritten version to avoid IBM’s patent.</p>
+<p>It maintains four lists:</p>
+<ul>
+<li><strong>T1 (recent):</strong> pages seen exactly once recently.</li>
+<li><strong>T2 (frequent):</strong> pages seen at least twice.</li>
+<li><strong>B1 (ghost of T1):</strong> <em>only the ids</em> of pages recently evicted from T1.</li>
+<li><strong>B2 (ghost of T2):</strong> <em>only the ids</em> of pages recently evicted from T2.</li>
+<li>And a target parameter <strong>p</strong> that says how much of the cache to give to T1 vs T2.</li>
+</ul>
+<div id="fig-arc" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Four lists in a row: B1, T1, T2, B2, with a movable divider labeled p between T1 and T2.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-arc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/arc.svg" class="img-fluid figure-img" alt="Four lists in a row: B1, T1, T2, B2, with a movable divider labeled p between T1 and T2.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-arc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: ARC. Real pages live in T1 and T2. The ghost lists remember what was just evicted, and a hit in a ghost list tells ARC which side it was too stingy to.
+</figcaption>
+</figure>
+</div>
+<p>The clever part is the ghost lists. Suppose you ask for page X, it’s not in memory, but its id is in <strong>B1</strong>. That means “I evicted X from the <em>recent</em> list, and I needed it again shortly after.” The recent side was too small, so ARC <strong>increases p</strong> (more room for recency). A hit in <strong>B2</strong> says the opposite: the frequent side was too small, so <strong>decrease p</strong>.</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    A["Request page X"] --&gt; B{"Where is X?"}
+    B -- "in T1" --&gt; C["Hit: promote T1 to T2 (now 'frequent')"]
+    B -- "in T2" --&gt; D["Hit: stays in T2"]
+    B -- "in ghost B1" --&gt; E["Miss: increase p, load X into T2"]
+    B -- "in ghost B2" --&gt; F["Miss: decrease p, load X into T2"]
+    B -- "nowhere" --&gt; G["Miss: make room (evict from T1/B1 or T2/B2), insert X into T1"]
+</pre>
+</div>
+<p></p><figcaption> ARC lookup, simplified from the lecture’s protocol.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>A page lives in only one list at a time. Anything new goes into T1; touching it again moves it to T2. So a one-time scan only ever occupies T1 and can’t flush the frequent set in T2.</p>
+</section>
+</section>
+<section id="smarter-policies-using-what-the-dbms-knows" class="level2">
+<h2 class="anchored" data-anchor-id="smarter-policies-using-what-the-dbms-knows">Smarter policies using what the DBMS knows</h2>
+<p>LRU, Clock, ARC all just watch <em>accesses</em>. The DBMS has much more information because it knows the <strong>query plan</strong>. Two ways to use it:</p>
+<section id="localization" class="level3">
+<h3 class="anchored" data-anchor-id="localization">Localization</h3>
+<p>Evict on a <strong>per-query basis</strong> so one query can’t pollute the whole pool. Postgres, for example, gives a scan a small, limited ring of buffer pool pages and reuses it as a circular buffer. A big sequential scan keeps recycling its own ring and leaves everyone else’s pages alone.</p>
+</section>
+<section id="priority-hints" class="level3">
+<h3 class="anchored" data-anchor-id="priority-hints">Priority hints</h3>
+<p>The DBMS can tell the buffer pool “this page is important.” Say the table has an index on <code>id</code>, and the workload is:</p>
+<ul>
+<li><code>INSERT INTO A VALUES (id++)</code>: always appends at the <strong>right edge</strong> of the B+tree.</li>
+<li><code>SELECT * FROM A WHERE id = ?</code>: a lookup, which must start at the <strong>root</strong> of the tree.</li>
+</ul>
+<p>The root and the right-most leaf are <em>obviously</em> worth keeping resident. The upper index pages get <strong>high</strong> priority, a random leaf gets <strong>low</strong>. No generic replacement policy can know that, but the query executor can.</p>
+</section>
+</section>
+<section id="dirty-pages-fast-path-vs-slow-path" class="level2">
+<h2 class="anchored" data-anchor-id="dirty-pages-fast-path-vs-slow-path">Dirty pages: fast path vs slow path</h2>
+<p>When we pick a victim:</p>
+<ul>
+<li><strong>Not dirty</strong> means a fast path: just drop it. The disk already has the same bytes.</li>
+<li><strong>Dirty</strong> means a slow path: write it to disk first, then reuse the frame.</li>
+</ul>
+<p>There’s a trade-off: preferring clean victims makes eviction fast, but you might evict a page that’s about to be read again just because it was clean.</p>
+<section id="background-writing" class="level3">
+<h3 class="anchored" data-anchor-id="background-writing">Background writing</h3>
+<p>To avoid slow-path evictions in the hot path, the DBMS runs a <strong>background writer</strong> (aka page cleaner or buffer flusher) that periodically walks the page table and writes dirty pages to disk. After a safe flush, the page can be evicted instantly, or just have its dirty flag reset.</p>
+<p>The catch: you can’t flush a dirty page before its <strong>log record</strong> has been written (write-ahead logging, which comes in a later lecture). Background writing must respect that.</p>
+</section>
+</section>
+<section id="taking-disk-io-away-from-the-os" class="level2">
+<h2 class="anchored" data-anchor-id="taking-disk-io-away-from-the-os">Taking disk I/O away from the OS</h2>
+<section id="io-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="io-scheduling">I/O scheduling</h3>
+<p>The OS and disk hardware reorder and batch I/O requests to maximize bandwidth, but they cannot tell which requests matter more. The DBMS keeps its <strong>own queues</strong> and prioritizes by:</p>
+<ul>
+<li>sequential vs.&nbsp;random I/O,</li>
+<li>critical-path work vs.&nbsp;background work,</li>
+<li>table vs.&nbsp;index vs.&nbsp;log vs.&nbsp;temporary data,</li>
+<li>transaction information,</li>
+<li>user-based SLAs.</li>
+</ul>
+<p>That’s why many databases (Oracle, Vertica, MySQL) advise switching Linux to a simple <code>deadline</code> or <code>noop</code> (FIFO) I/O scheduler: let the DBMS be the smart one.</p>
+</section>
+<section id="the-os-page-cache-and-o_direct" class="level3">
+<h3 class="anchored" data-anchor-id="the-os-page-cache-and-o_direct">The OS page cache and <code>O_DIRECT</code></h3>
+<p>Even when you use plain <code>read()</code>/<code>write()</code>, the OS keeps its own cache of file pages (the <strong>page cache</strong>). Your data then lives in memory twice: once in the OS cache and once in your buffer pool. And the two caches have different eviction policies.</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart LR
+    subgraph U["User space"]
+        D["DBMS buffer pool"]
+    end
+    subgraph K["Kernel space"]
+        C["OS page cache"]
+    end
+    X[("Disk")]
+    D -- "read()" --&gt; C
+    C --&gt; X
+    D -. "O_DIRECT bypasses the cache" .-&gt; X
+</pre>
+</div>
+<p></p><figcaption> Without O_DIRECT, reads go through the kernel’s page cache and the data is cached twice.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>Most DBMSs therefore open files with <strong><code>O_DIRECT</code></strong>, which skips the OS cache and avoids redundant copies, conflicting policies, and loss of control over file I/O.</p>
+</section>
+<section id="the-fsync-horror-story" class="level3">
+<h3 class="anchored" data-anchor-id="the-fsync-horror-story">The <code>fsync</code> horror story</h3>
+<p>Here’s why “the OS is not your friend” isn’t just a slogan:</p>
+<ol type="1">
+<li><code>fwrite</code> only writes into the OS cache. It does <strong>not</strong> mean the data is on disk.</li>
+<li><code>fsync</code> asks the OS to flush it to disk.</li>
+<li>What if <code>fsync</code> fails with an I/O error (<code>EIO</code>)? On Linux, the dirty pages get marked <strong>clean</strong>, and the next <code>fsync</code> call happily reports <em>success</em>.</li>
+</ol>
+<p>A DBMS that retries <code>fsync</code> after a failure and trusts the success may believe data is safely on disk when it was actually lost. Lesson: if <code>fsync</code> fails, treat it as fatal; don’t retry and assume.</p>
+</section>
+</section>
+<section id="four-buffer-pool-optimizations" class="level2">
+<h2 class="anchored" data-anchor-id="four-buffer-pool-optimizations">Four buffer pool optimizations</h2>
+<section id="multiple-buffer-pools" class="level3">
+<h3 class="anchored" data-anchor-id="multiple-buffer-pools">1. Multiple buffer pools</h3>
+<p>A system doesn’t always have one giant pool. It may have several instances, a pool per database, or a pool per page type. This reduces <strong>latch contention</strong> (threads fight over a smaller structure, and each pool has its own LRU metadata) and can improve locality.</p>
+<p>How do you decide which pool a page belongs to?</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart LR
+    subgraph A["Approach 1: object id in the record id"]
+        R1["Record id: (ObjectId, PageId, SlotNum)"] --&gt; M["Map ObjectId to a pool"]
+        M --&gt; P1["Buffer pool 1"]
+        M --&gt; P2["Buffer pool 2"]
+    end
+    subgraph B["Approach 2: hashing"]
+        R2["Page id 123"] --&gt; H["hash(123) % n"]
+        H --&gt; P3["Buffer pool 1"]
+        H --&gt; P4["Buffer pool 2"]
+    end
+</pre>
+</div>
+<p></p><figcaption> Two ways to route a request to one of several buffer pools.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="prefetching" class="level3">
+<h3 class="anchored" data-anchor-id="prefetching">2. Prefetching</h3>
+<p>Because the DBMS has the plan, it can fetch pages <strong>before</strong> they’re requested.</p>
+<ul>
+<li><strong>Sequential scan:</strong> while the engine processes page 1, the DBMS is already loading pages 2 and 3.</li>
+<li><strong>Index scan:</strong> take <code>SELECT * FROM A WHERE val BETWEEN 100 AND 250</code>. The B+tree tells the DBMS exactly which leaf pages cover that range (say keys 100-199 and 200-299). Those leaves may be scattered across the disk, so the OS cannot guess them from a “read sequentially” pattern, but the DBMS can request them ahead of time.</li>
+</ul>
+<p>Some systems also prefetch to fill empty frames at startup.</p>
+</section>
+<section id="scan-sharing-synchronized-scans" class="level3">
+<h3 class="anchored" data-anchor-id="scan-sharing-synchronized-scans">3. Scan sharing (synchronized scans)</h3>
+<p>Two queries scanning the same table at the same time doing the same disk reads is wasteful. With scan sharing, the second query <strong>attaches to the first one’s cursor</strong>.</p>
+<p>Example:</p>
+<ol type="1">
+<li>Q1 <code>SELECT SUM(val) FROM A</code> starts a scan of pages 0-5 and is currently around page 3.</li>
+<li>Q2 <code>SELECT AVG(val) FROM A</code> arrives. Instead of starting from page 0, it joins Q1’s cursor at page 3.</li>
+<li>Pages 3, 4, 5 are read from disk <strong>once</strong> and used by both.</li>
+<li>Q1 finishes. Q2 wraps around and reads pages 0, 1, 2 on its own.</li>
+</ol>
+<p>This is different from <strong>result caching</strong>: each query still computes its own answer; they just share the physical reads. It’s fully supported in DB2, MSSQL, Teradata and Postgres, while Oracle only supports cursor sharing for identical queries.</p>
+<p>One caveat: a query like <code>SELECT * FROM A LIMIT 100</code> that joins a scan midway sees rows in a different order than if it had started from page 0. That’s fine under SQL semantics when there is no <code>ORDER BY</code>, but it’s a subtle behavior worth knowing.</p>
+</section>
+<section id="buffer-pool-bypass" class="level3">
+<h3 class="anchored" data-anchor-id="buffer-pool-bypass">4. Buffer pool bypass</h3>
+<p>For a big sequential scan, you may not want to put pages in the shared pool at all. The scan operator uses <strong>private memory local to the running query</strong>, so there’s no cache pollution and no bookkeeping overhead. It works well when reading a long run of contiguous pages, and can also be used for temporary data (sorting, joins). Informix calls these <strong>“light scans.”</strong></p>
+</section>
+</section>
+<section id="try-it-yourself-a-tiny-buffer-pool" class="level2">
+<h2 class="anchored" data-anchor-id="try-it-yourself-a-tiny-buffer-pool">Try it yourself: a tiny buffer pool</h2>
+<p>Here is a stripped-down buffer pool in Python so you can see the moving parts. It’s a toy: no threads, no real disk, LRU eviction.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> OrderedDict</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BufferPool:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, num_frames, disk):</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.num_frames <span class="op">=</span> num_frames</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.disk <span class="op">=</span> disk                    <span class="co"># dict: page_id -&gt; bytes (fake disk)</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.frames <span class="op">=</span> OrderedDict()         <span class="co"># page_id -&gt; Frame, oldest first (LRU order)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">class</span> Frame:</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, data):</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.data <span class="op">=</span> data</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.dirty <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.pin_count <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> fetch_page(<span class="va">self</span>, page_id):</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HIT: already in memory</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> page_id <span class="kw">in</span> <span class="va">self</span>.frames:</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.frames.move_to_end(page_id)     <span class="co"># mark as most recently used</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>            frame <span class="op">=</span> <span class="va">self</span>.frames[page_id]</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>            frame.pin_count <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> frame</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># MISS: make room if needed</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.frames) <span class="op">&gt;=</span> <span class="va">self</span>.num_frames:</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>._evict_one()</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>        frame <span class="op">=</span> <span class="va">self</span>.Frame(<span class="va">self</span>.disk[page_id])   <span class="co"># "read from disk"</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>        frame.pin_count <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.frames[page_id] <span class="op">=</span> frame</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> frame</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> unpin_page(<span class="va">self</span>, page_id, is_dirty):</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>        frame <span class="op">=</span> <span class="va">self</span>.frames[page_id]</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>        frame.pin_count <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>        frame.dirty <span class="op">=</span> frame.dirty <span class="kw">or</span> is_dirty</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _evict_one(<span class="va">self</span>):</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> page_id, frame <span class="kw">in</span> <span class="va">self</span>.frames.items():   <span class="co"># oldest first</span></span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> frame.pin_count <span class="op">==</span> <span class="dv">0</span>:                 <span class="co"># never evict pinned pages</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> frame.dirty:</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>                    <span class="va">self</span>.disk[page_id] <span class="op">=</span> frame.data  <span class="co"># slow path: write back</span></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>                <span class="kw">del</span> <span class="va">self</span>.frames[page_id]             <span class="co"># fast path: just drop</span></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span></span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="st">"all frames are pinned"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Things to try:</p>
+<ul>
+<li>Make it Clock instead of LRU by replacing the <code>OrderedDict</code> with a list, a hand index and a <code>ref</code> bit.</li>
+<li>Add a sequential scan and watch what happens to a “hot” page (sequential flooding, live).</li>
+<li>Add a <code>scan_ring_size</code> limit so a scan reuses a tiny ring of frames. That’s localization.</li>
+</ul>
+</section>
+<section id="the-big-picture" class="level2">
+<h2 class="anchored" data-anchor-id="the-big-picture">The big picture</h2>
+<p>The conclusion of the lecture fits in two lines:</p>
+<ul>
+<li>The DBMS can almost always manage memory better than the OS, because it knows what’s coming.</li>
+<li>Use the semantics of the <strong>query plan</strong> to make better decisions about <strong>evictions, allocations and prefetching</strong>.</li>
+</ul>
+<p>A cheat sheet:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Policy / technique</th>
+<th>Core idea</th>
+<th>Fixes / helps with</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>LRU</td>
+<td>Evict the least recently touched page</td>
+<td>Basic temporal locality</td>
+</tr>
+<tr class="even">
+<td>Clock</td>
+<td>One reference bit and a sweeping hand</td>
+<td>LRU’s metadata cost</td>
+</tr>
+<tr class="odd">
+<td>LFU</td>
+<td>Evict the least frequently used</td>
+<td>Popularity, but ignores age</td>
+</tr>
+<tr class="even">
+<td>LRU-K</td>
+<td>Use the K-th last access</td>
+<td>Sequential flooding</td>
+</tr>
+<tr class="odd">
+<td>MySQL young/old</td>
+<td>One list, two entry points</td>
+<td>Cheap LRU-2 behavior</td>
+</tr>
+<tr class="even">
+<td>ARC</td>
+<td>Recent + frequent lists with ghosts, self-tuning</td>
+<td>Shifting workloads</td>
+</tr>
+<tr class="odd">
+<td>Localization</td>
+<td>Per-query frame budget</td>
+<td>One query polluting the pool</td>
+</tr>
+<tr class="even">
+<td>Priority hints</td>
+<td>Executor marks important pages</td>
+<td>Index roots, hot pages</td>
+</tr>
+<tr class="odd">
+<td>Multiple pools</td>
+<td>Partition the pool</td>
+<td>Latch contention</td>
+</tr>
+<tr class="even">
+<td>Prefetch / scan sharing / bypass</td>
+<td>Use the plan</td>
+<td>Fewer, better disk reads</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="where-to-go-next" class="level2">
+<h2 class="anchored" data-anchor-id="where-to-go-next">Where to go next</h2>
+<p>I will be uploading another blog possibly on On disk storage, that deals with the pages, layouts, page directory and much more. That could potentially be a longer blog. ## References</p>
+<ul>
+<li><strong>Lecture video:</strong> <a href="https://www.youtube.com/watch?v=8-2yv4z0VZc&amp;list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&amp;index=4">CMU 15-445/645 Database Systems (Fall 2025), Lecture 04: Buffer Pools</a>, Prof.&nbsp;Andy Pavlo.</li>
+<li><strong>Course website:</strong> <a href="https://15445.courses.cs.cmu.edu/">15445.courses.cs.cmu.edu</a></li>
+<li>Crotty, Leis, Pavlo. <em>Are You Sure You Want to Use MMAP in Your Database Management System?</em> CIDR 2022. <a href="https://db.cs.cmu.edu/mmap-cidr2022">db.cs.cmu.edu/mmap-cidr2022</a></li>
+<li>Megiddo, Modha. <em>ARC: A Self-Tuning, Low Overhead Replacement Cache.</em> FAST 2003.</li>
+<li>O’Neil, O’Neil, Weikum. <em>The LRU-K Page Replacement Algorithm for Database Disk Buffering.</em> SIGMOD 1993.</li>
+</ul>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+          if (!link.classList.contains('no-external-icon')) {
+          }
+        }
+      }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
+          if (lineIds.length > 0) {
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            placeBand(gutterDiv, el, lastEl);
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Notes based on CMU 15-445/645 and other database resources.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>
