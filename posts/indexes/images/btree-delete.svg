@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 640" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <!-- Rule: a node needs at least 1 key, max 3 keys -->
+
+  <!-- ===== PANEL 1 ===== -->
+  <text x="20" y="22" font-weight="bold">1. Start. Now delete 2.</text>
+  <g stroke="#4a78c2" stroke-width="1.8">
+    <line x1="340" y1="60" x2="150" y2="120"/><line x1="380" y1="60" x2="330" y2="120"/><line x1="420" y1="60" x2="530" y2="120"/>
+  </g>
+  <rect x="340" y="30" width="40" height="30" rx="4" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <rect x="380" y="30" width="40" height="30" rx="4" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <g text-anchor="middle" font-weight="bold"><text x="360" y="50">6</text><text x="400" y="50">10</text></g>
+
+  <rect x="130" y="120" width="40" height="30" fill="#ffe9e9" stroke="#c0392b" stroke-width="2.5"/>
+  <text x="150" y="140" text-anchor="middle" font-weight="bold">2</text>
+  <text x="150" y="170" text-anchor="middle" font-size="13" fill="#c0392b">remove it: 0 keys left</text>
+  <text x="150" y="186" text-anchor="middle" font-size="13" fill="#c0392b">(minimum is 1) underfull!</text>
+
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="290" y="120" width="40" height="30"/><rect x="330" y="120" width="40" height="30"/>
+    <rect x="470" y="120" width="40" height="30"/><rect x="510" y="120" width="40" height="30"/><rect x="550" y="120" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="310" y="140">6</text><text x="350" y="140">8</text>
+    <text x="490" y="140">10</text><text x="530" y="140">12</text><text x="570" y="140">15</text>
+  </g>
+  <text x="330" y="170" text-anchor="middle" font-size="13" fill="#2f8f4e">"rich" sibling: has 2 keys</text>
+  <text x="330" y="186" text-anchor="middle" font-size="13" fill="#2f8f4e">so it can spare one</text>
+
+  <line x1="20" y1="208" x2="740" y2="208" stroke="#ccc" stroke-dasharray="6 6"/>
+
+  <!-- ===== PANEL 2 ===== -->
+  <text x="20" y="232" font-weight="bold">2. Borrow 6 from the right sibling, then fix the separator in the parent (6 becomes 8).</text>
+  <g stroke="#4a78c2" stroke-width="1.8">
+    <line x1="340" y1="270" x2="150" y2="330"/><line x1="380" y1="270" x2="330" y2="330"/><line x1="420" y1="270" x2="530" y2="330"/>
+  </g>
+  <rect x="340" y="240" width="40" height="30" rx="4" fill="#ffd9b3" stroke="#c2410c" stroke-width="2.5"/>
+  <rect x="380" y="240" width="40" height="30" rx="4" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <g text-anchor="middle" font-weight="bold"><text x="360" y="260">8</text><text x="400" y="260">10</text></g>
+
+  <rect x="130" y="330" width="40" height="30" fill="#ffd9b3" stroke="#c2410c" stroke-width="2.5"/>
+  <text x="150" y="350" text-anchor="middle" font-weight="bold">6</text>
+  <rect x="310" y="330" width="40" height="30" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="330" y="350" text-anchor="middle" font-weight="bold">8</text>
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="470" y="330" width="40" height="30"/><rect x="510" y="330" width="40" height="30"/><rect x="550" y="330" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold"><text x="490" y="350">10</text><text x="530" y="350">12</text><text x="570" y="350">15</text></g>
+  <text x="240" y="382" text-anchor="middle" font-size="13" fill="#555">no sibling is overfull or underfull any more. Done.</text>
+
+  <line x1="20" y1="408" x2="740" y2="408" stroke="#ccc" stroke-dasharray="6 6"/>
+
+  <!-- ===== PANEL 3 ===== -->
+  <text x="20" y="432" font-weight="bold">3. Now delete 6. The sibling (8) has only 1 key, so it cannot lend. Merge instead.</text>
+  <g stroke="#4a78c2" stroke-width="1.8">
+    <line x1="335" y1="470" x2="240" y2="530"/><line x1="375" y1="470" x2="530" y2="530"/>
+  </g>
+  <rect x="335" y="440" width="40" height="30" rx="4" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="355" y="460" text-anchor="middle" font-weight="bold">10</text>
+  <text x="440" y="458" font-size="13" fill="#c2410c">the separator "8" is removed from the parent</text>
+
+  <rect x="220" y="530" width="40" height="30" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="240" y="550" text-anchor="middle" font-weight="bold">8</text>
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="470" y="530" width="40" height="30"/><rect x="510" y="530" width="40" height="30"/><rect x="550" y="530" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold"><text x="490" y="550">10</text><text x="530" y="550">12</text><text x="570" y="550">15</text></g>
+  <text x="240" y="582" text-anchor="middle" font-size="13" fill="#555">the emptied leaf disappears</text>
+
+  <text x="20" y="616" font-size="13" fill="#444">If removing a key from the parent leaves it underfull, the same borrow-or-merge logic repeats one level up.</text>
+  <text x="20" y="634" font-size="13" fill="#444">If the root ends up with zero keys, its single child becomes the new root and the tree shrinks by one level.</text>
+</svg>

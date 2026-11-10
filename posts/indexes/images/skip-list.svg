@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a78c2"/>
+    </marker>
+    <marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+
+  <!-- level labels -->
+  <g font-size="12" fill="#555">
+    <text x="10" y="40">Level 2 (express)</text>
+    <text x="10" y="120">Level 1</text>
+    <text x="10" y="200">Level 0 (every key)</text>
+  </g>
+
+  <!-- vertical towers (same key across levels) -->
+  <g stroke="#bbb" stroke-dasharray="3 4" stroke-width="1.5">
+    <line x1="100" y1="215" x2="100" y2="215"/>
+    <line x1="180" y1="215" x2="180" y2="145"/>
+    <line x1="340" y1="215" x2="340" y2="65"/>
+    <line x1="500" y1="215" x2="500" y2="145"/>
+  </g>
+
+  <!-- Level 2 : head, 8, end -->
+  <g fill="#e6f0ff" stroke="#4a78c2" stroke-width="2">
+    <rect x="15"  y="50" width="50" height="30" rx="4" fill="#f0f0f0" stroke="#888"/>
+    <rect x="316" y="50" width="48" height="30" rx="4"/>
+    <rect x="715" y="50" width="50" height="30" rx="4" fill="#f0f0f0" stroke="#888"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="40" y="70" fill="#666">head</text><text x="340" y="70">8</text><text x="740" y="70" fill="#666">end</text>
+  </g>
+  <g stroke="#4a78c2" stroke-width="2" marker-end="url(#a)">
+    <line x1="66" y1="65" x2="312" y2="65" stroke="#c2410c" marker-end="url(#o)" stroke-width="3"/>
+    <line x1="365" y1="65" x2="711" y2="65"/>
+  </g>
+
+  <!-- Level 1 : head, 4, 8, 12, end -->
+  <g fill="#e6f0ff" stroke="#4a78c2" stroke-width="2">
+    <rect x="15"  y="130" width="50" height="30" rx="4" fill="#f0f0f0" stroke="#888"/>
+    <rect x="156" y="130" width="48" height="30" rx="4"/>
+    <rect x="316" y="130" width="48" height="30" rx="4"/>
+    <rect x="476" y="130" width="48" height="30" rx="4" fill="#ffd9b3" stroke="#c2410c"/>
+    <rect x="715" y="130" width="50" height="30" rx="4" fill="#f0f0f0" stroke="#888"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="40" y="150" fill="#666">head</text><text x="180" y="150">4</text><text x="340" y="150">8</text>
+    <text x="500" y="150">12</text><text x="740" y="150" fill="#666">end</text>
+  </g>
+  <g stroke="#4a78c2" stroke-width="2" marker-end="url(#a)">
+    <line x1="66" y1="145" x2="152" y2="145"/>
+    <line x1="205" y1="145" x2="312" y2="145"/>
+    <line x1="365" y1="145" x2="472" y2="145" stroke="#c2410c" marker-end="url(#o)" stroke-width="3"/>
+    <line x1="525" y1="145" x2="711" y2="145"/>
+  </g>
+
+  <!-- Level 0 : head, 2..16, end -->
+  <g fill="#e6f0ff" stroke="#4a78c2" stroke-width="2">
+    <rect x="15"  y="210" width="50" height="30" rx="4" fill="#f0f0f0" stroke="#888"/>
+    <rect x="76"  y="210" width="48" height="30" rx="4"/>
+    <rect x="156" y="210" width="48" height="30" rx="4"/>
+    <rect x="236" y="210" width="48" height="30" rx="4"/>
+    <rect x="316" y="210" width="48" height="30" rx="4"/>
+    <rect x="396" y="210" width="48" height="30" rx="4"/>
+    <rect x="476" y="210" width="48" height="30" rx="4" fill="#ffd9b3" stroke="#c2410c" stroke-width="3"/>
+    <rect x="556" y="210" width="48" height="30" rx="4"/>
+    <rect x="636" y="210" width="48" height="30" rx="4"/>
+    <rect x="715" y="210" width="50" height="30" rx="4" fill="#f0f0f0" stroke="#888"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="40" y="230" fill="#666">head</text>
+    <text x="100" y="230">2</text><text x="180" y="230">4</text><text x="260" y="230">6</text>
+    <text x="340" y="230">8</text><text x="420" y="230">10</text><text x="500" y="230">12</text>
+    <text x="580" y="230">14</text><text x="660" y="230">16</text><text x="740" y="230" fill="#666">end</text>
+  </g>
+  <g stroke="#4a78c2" stroke-width="2" marker-end="url(#a)">
+    <line x1="66"  y1="225" x2="72"  y2="225"/>
+    <line x1="125" y1="225" x2="152" y2="225"/>
+    <line x1="205" y1="225" x2="232" y2="225"/>
+    <line x1="285" y1="225" x2="312" y2="225"/>
+    <line x1="365" y1="225" x2="392" y2="225"/>
+    <line x1="445" y1="225" x2="472" y2="225"/>
+    <line x1="525" y1="225" x2="552" y2="225"/>
+    <line x1="605" y1="225" x2="632" y2="225"/>
+    <line x1="685" y1="225" x2="711" y2="225"/>
+  </g>
+
+  <!-- path: drop down arrows -->
+  <g stroke="#c2410c" stroke-width="3" marker-end="url(#o)" fill="none">
+    <line x1="340" y1="82" x2="340" y2="126"/>
+    <line x1="500" y1="162" x2="500" y2="206"/>
+  </g>
+
+  <!-- annotations -->
+  <text x="400" y="285" text-anchor="middle" font-size="13" fill="#c2410c" font-weight="bold">Search for 12: at level 2 jump to 8 (next is the end), drop to level 1, jump to 12, drop down. Found.</text>
+  <text x="400" y="308" text-anchor="middle" font-size="13" fill="#555">Two jumps and two drops instead of walking past 6 nodes along level 0.</text>
+</svg>

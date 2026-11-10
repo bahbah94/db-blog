@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <!-- plot area -->
+  <rect x="20" y="20" width="470" height="390" rx="8" fill="#fcfcfc" stroke="#999" stroke-width="2"/>
+  <text x="30" y="40" font-size="12" fill="#888">2D picture of a vector space (real embeddings have hundreds of dimensions)</text>
+
+  <!-- cluster halos -->
+  <circle cx="125" cy="125" r="95" fill="#e6f0ff" fill-opacity="0.55" stroke="#4a78c2" stroke-dasharray="5 5"/>
+  <circle cx="370" cy="120" r="75" fill="#e3f6e3" fill-opacity="0.6" stroke="#2f8f4e" stroke-dasharray="5 5"/>
+  <circle cx="248" cy="328" r="72" fill="#f1e6fb" fill-opacity="0.6" stroke="#7b3fb5" stroke-dasharray="5 5"/>
+
+  <!-- cluster A points -->
+  <g fill="#4a78c2">
+    <circle cx="95" cy="90" r="6"/><circle cx="140" cy="80" r="6"/><circle cx="110" cy="130" r="6"/>
+    <circle cx="150" cy="125" r="6"/><circle cx="85" cy="120" r="6"/><circle cx="130" cy="105" r="6"/>
+    <circle cx="170" cy="190" r="6"/>
+  </g>
+  <!-- cluster B points -->
+  <g fill="#2f8f4e">
+    <circle cx="345" cy="95" r="6"/><circle cx="390" cy="100" r="6"/><circle cx="400" cy="140" r="6"/>
+    <circle cx="355" cy="140" r="6"/><circle cx="380" cy="115" r="6"/><circle cx="335" cy="125" r="6"/>
+  </g>
+  <!-- cluster C points -->
+  <g fill="#7b3fb5">
+    <circle cx="225" cy="320" r="6"/><circle cx="265" cy="330" r="6"/><circle cx="245" cy="358" r="6"/>
+    <circle cx="285" cy="310" r="6"/><circle cx="215" cy="345" r="6"/><circle cx="260" cy="300" r="6"/>
+  </g>
+
+  <!-- centroids (diamonds) -->
+  <g stroke="#222" stroke-width="2">
+    <polygon points="120,98 132,110 120,122 108,110" fill="#4a78c2"/>
+    <polygon points="370,108 382,120 370,132 358,120" fill="#2f8f4e"/>
+    <polygon points="245,313 257,325 245,337 233,325" fill="#7b3fb5"/>
+  </g>
+  <text x="60"  y="62"  font-size="12" font-weight="bold" fill="#4a78c2">centroid A</text>
+  <text x="340" y="70"  font-size="12" font-weight="bold" fill="#2f8f4e">centroid B</text>
+  <text x="300" y="385" font-size="12" font-weight="bold" fill="#7b3fb5">centroid C</text>
+
+  <!-- query -->
+  <line x1="205" y1="240" x2="245" y2="313" stroke="#555" stroke-width="2" stroke-dasharray="5 4"/>
+  <line x1="205" y1="240" x2="170" y2="190" stroke="#c2410c" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <circle cx="205" cy="240" r="10" fill="#c2410c" stroke="#fff" stroke-width="2"/>
+  <text x="222" y="236" font-size="13" font-weight="bold" fill="#c2410c">query</text>
+  <text x="258" y="270" font-size="11" fill="#555">nearest centroid is C</text>
+  <text x="180" y="170" font-size="11" fill="#c2410c" text-anchor="end">true nearest neighbour</text>
+  <text x="180" y="184" font-size="11" fill="#c2410c" text-anchor="end">lives in cluster A</text>
+
+  <!-- explanation -->
+  <text x="515" y="50" font-weight="bold">Build (offline)</text>
+  <g font-size="13">
+    <text x="515" y="74">1. Run k-means to get centroids.</text>
+    <text x="515" y="94">2. Assign every vector to its</text>
+    <text x="515" y="111">    closest centroid.</text>
+    <text x="515" y="131">3. Keep one posting list of</text>
+    <text x="515" y="148">    vector ids per centroid.</text>
+  </g>
+  <text x="515" y="190" font-weight="bold">Search (online)</text>
+  <g font-size="13">
+    <text x="515" y="214">1. Compare the query with the</text>
+    <text x="515" y="231">    centroids only (a handful).</text>
+    <text x="515" y="251">2. Scan the lists of the closest</text>
+    <text x="515" y="268">    nprobe centroids.</text>
+    <text x="515" y="288">3. Return the best matches.</text>
+  </g>
+  <text x="515" y="330" font-size="13" fill="#c2410c" font-weight="bold">Watch out: with nprobe = 1 we</text>
+  <text x="515" y="347" font-size="13" fill="#c2410c" font-weight="bold">scan only C and miss the real</text>
+  <text x="515" y="364" font-size="13" fill="#c2410c" font-weight="bold">best answer. nprobe = 2 finds it.</text>
+  <text x="515" y="392" font-size="12" fill="#555">Bigger nprobe: better recall, slower.</text>
+</svg>
