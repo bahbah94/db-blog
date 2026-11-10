@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+
+  <!-- ===== BEFORE ===== -->
+  <text x="20" y="26" font-weight="bold">BEFORE: insert 6   (a node holds at most 3 keys)</text>
+
+  <g stroke="#4a78c2" stroke-width="1.8"><line x1="335" y1="70" x2="240" y2="120"/><line x1="375" y1="70" x2="480" y2="120"/></g>
+  <rect x="335" y="40" width="40" height="30" rx="4" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="355" y="60" text-anchor="middle" font-weight="bold">10</text>
+
+  <!-- leaf A: 2 4 8 (full) -->
+  <g stroke="#c0392b" stroke-width="2.5" fill="#ffe9e9">
+    <rect x="180" y="120" width="40" height="30"/><rect x="220" y="120" width="40" height="30"/><rect x="260" y="120" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="200" y="140">2</text><text x="240" y="140">4</text><text x="280" y="140">8</text>
+  </g>
+  <text x="240" y="172" text-anchor="middle" font-size="13" fill="#c0392b">2 4 8 + 6 = 4 keys. Overflow!</text>
+
+  <!-- leaf B -->
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="420" y="120" width="40" height="30"/><rect x="460" y="120" width="40" height="30"/><rect x="500" y="120" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="440" y="140">10</text><text x="480" y="140">12</text><text x="520" y="140">15</text>
+  </g>
+
+  <!-- insert arrow -->
+  <text x="40" y="141" fill="#c2410c" font-weight="bold">insert 6</text>
+  <line x1="105" y1="136" x2="174" y2="136" stroke="#c2410c" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- divider -->
+  <line x1="20" y1="198" x2="740" y2="198" stroke="#ccc" stroke-dasharray="6 6"/>
+  <text x="380" y="192" text-anchor="middle" font-size="13" fill="#555">split the leaf into two halves, then copy the first key of the new right leaf into the parent</text>
+
+  <!-- ===== AFTER ===== -->
+  <text x="20" y="232" font-weight="bold">AFTER</text>
+
+  <g stroke="#4a78c2" stroke-width="1.8">
+    <line x1="315" y1="285" x2="150" y2="335"/>
+    <line x1="355" y1="285" x2="330" y2="335"/>
+    <line x1="395" y1="285" x2="530" y2="335"/>
+  </g>
+  <!-- root with two keys: 6 | 10 -->
+  <rect x="315" y="255" width="40" height="30" rx="4" fill="#ffd9b3" stroke="#c2410c" stroke-width="2.5"/>
+  <rect x="355" y="255" width="40" height="30" rx="4" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="335" y="275" text-anchor="middle" font-weight="bold">6</text>
+  <text x="375" y="275" text-anchor="middle" font-weight="bold">10</text>
+
+  <!-- leaf A1: 2 4 -->
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="110" y="335" width="40" height="30"/><rect x="150" y="335" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold"><text x="130" y="355">2</text><text x="170" y="355">4</text></g>
+
+  <!-- leaf A2: 6 8 -->
+  <rect x="290" y="335" width="40" height="30" fill="#ffd9b3" stroke="#c2410c" stroke-width="2.5"/>
+  <rect x="330" y="335" width="40" height="30" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <g text-anchor="middle" font-weight="bold"><text x="310" y="355">6</text><text x="350" y="355">8</text></g>
+
+  <!-- leaf B -->
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="470" y="335" width="40" height="30"/><rect x="510" y="335" width="40" height="30"/><rect x="550" y="335" width="40" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="490" y="355">10</text><text x="530" y="355">12</text><text x="570" y="355">15</text>
+  </g>
+
+  <!-- sibling pointers -->
+  <g stroke="#c2410c" stroke-width="2" marker-end="url(#ar)">
+    <line x1="192" y1="350" x2="286" y2="350"/>
+    <line x1="372" y1="350" x2="466" y2="350"/>
+  </g>
+
+  <text x="430" y="270" font-size="13" fill="#c2410c">6 is COPIED up: it also stays in the leaf</text>
+  <text x="430" y="288" font-size="13" fill="#555">(the leaf must keep every real key)</text>
+
+  <text x="20" y="410" font-size="13" fill="#444">If the parent were full too, it would split as well. For an inner node the middle key is PUSHED up</text>
+  <text x="20" y="428" font-size="13" fill="#444">(moved, not copied), because inner keys are only signposts. A split of the root grows the tree by one level.</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 290" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <!-- page outline -->
+  <rect x="10" y="10" width="760" height="230" rx="10" fill="#fafafa" stroke="#999" stroke-width="2"/>
+  <text x="24" y="32" font-weight="bold" fill="#555">One leaf node = one page (e.g. 16 KB)</text>
+
+  <!-- header -->
+  <text x="24" y="62" font-size="12" fill="#555">HEADER</text>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="24"  y="68" width="100" height="40" rx="4"/>
+    <rect x="130" y="68" width="100" height="40" rx="4"/>
+    <rect x="236" y="68" width="100" height="40" rx="4"/>
+    <rect x="342" y="68" width="100" height="40" rx="4"/>
+    <rect x="448" y="68" width="110" height="40" rx="4"/>
+  </g>
+  <g text-anchor="middle" font-size="13">
+    <text x="74"  y="93">level</text>
+    <text x="180" y="93">#slots used</text>
+    <text x="286" y="93">prev page id</text>
+    <text x="392" y="93">next page id</text>
+    <text x="503" y="93">high key</text>
+  </g>
+
+  <!-- keys array -->
+  <text x="24" y="138" font-size="12" fill="#555">SORTED KEYS</text>
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="24"  y="144" width="80" height="34"/>
+    <rect x="104" y="144" width="80" height="34"/>
+    <rect x="184" y="144" width="80" height="34"/>
+    <rect x="264" y="144" width="80" height="34"/>
+    <rect x="344" y="144" width="80" height="34"/>
+    <rect x="504" y="144" width="80" height="34" fill="#ffffff" stroke-dasharray="5 4"/>
+    <rect x="584" y="144" width="80" height="34" fill="#ffffff" stroke-dasharray="5 4"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="64"  y="166">K1</text><text x="144" y="166">K2</text><text x="224" y="166">K3</text>
+    <text x="304" y="166">K4</text><text x="384" y="166">K5</text>
+  </g>
+  <text x="464" y="166" text-anchor="middle" font-size="20" fill="#555">...</text>
+  <text x="544" y="166" text-anchor="middle" fill="#aaa">free</text>
+  <text x="624" y="166" text-anchor="middle" fill="#aaa">free</text>
+
+  <!-- values array -->
+  <text x="24" y="198" font-size="12" fill="#555">VALUES (same order)</text>
+  <g stroke="#b8860b" stroke-width="2" fill="#fff6d6">
+    <rect x="24"  y="204" width="80" height="30"/>
+    <rect x="104" y="204" width="80" height="30"/>
+    <rect x="184" y="204" width="80" height="30"/>
+    <rect x="264" y="204" width="80" height="30"/>
+    <rect x="344" y="204" width="80" height="30"/>
+    <rect x="504" y="204" width="80" height="30" fill="#ffffff" stroke-dasharray="5 4"/>
+    <rect x="584" y="204" width="80" height="30" fill="#ffffff" stroke-dasharray="5 4"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold" fill="#7a5c00">
+    <text x="64"  y="224">V1</text><text x="144" y="224">V2</text><text x="224" y="224">V3</text>
+    <text x="304" y="224">V4</text><text x="384" y="224">V5</text>
+  </g>
+  <text x="464" y="224" text-anchor="middle" font-size="20" fill="#555">...</text>
+
+  <!-- explanation -->
+  <text x="24" y="262" font-size="13" fill="#444">V = a record id (page, slot)  OR  the whole tuple (index-organized storage)</text>
+  <text x="24" y="280" font-size="13" fill="#444">prev / next are page ids, not memory pointers, so a leaf can be written to disk as-is.</text>
+</svg>
