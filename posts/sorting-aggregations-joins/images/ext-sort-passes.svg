@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 340" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <!-- Pass 0 -->
+  <text x="20" y="57" font-weight="bold">Pass 0</text>
+  <text x="20" y="75" font-size="12" fill="#555">8 runs of 1 page</text>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="150" y="40" width="68" height="40" rx="4"/><rect x="222" y="40" width="68" height="40" rx="4"/>
+    <rect x="294" y="40" width="68" height="40" rx="4"/><rect x="366" y="40" width="68" height="40" rx="4"/>
+    <rect x="438" y="40" width="68" height="40" rx="4"/><rect x="510" y="40" width="68" height="40" rx="4"/>
+    <rect x="582" y="40" width="68" height="40" rx="4"/><rect x="654" y="40" width="68" height="40" rx="4"/>
+  </g>
+  <g text-anchor="middle" font-size="12" fill="#333">
+    <text x="184" y="64">sorted</text><text x="256" y="64">sorted</text><text x="328" y="64">sorted</text><text x="400" y="64">sorted</text>
+    <text x="472" y="64">sorted</text><text x="544" y="64">sorted</text><text x="616" y="64">sorted</text><text x="688" y="64">sorted</text>
+  </g>
+
+  <!-- Pass 1 -->
+  <text x="20" y="127" font-weight="bold">Pass 1</text>
+  <text x="20" y="145" font-size="12" fill="#555">4 runs of 2 pages</text>
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="150" y="110" width="140" height="40" rx="4"/><rect x="294" y="110" width="140" height="40" rx="4"/>
+    <rect x="438" y="110" width="140" height="40" rx="4"/><rect x="582" y="110" width="140" height="40" rx="4"/>
+  </g>
+  <g text-anchor="middle" font-size="12" fill="#333">
+    <text x="220" y="134">merged</text><text x="364" y="134">merged</text><text x="508" y="134">merged</text><text x="652" y="134">merged</text>
+  </g>
+
+  <!-- Pass 2 -->
+  <text x="20" y="197" font-weight="bold">Pass 2</text>
+  <text x="20" y="215" font-size="12" fill="#555">2 runs of 4 pages</text>
+  <g stroke="#b8860b" stroke-width="2" fill="#fff6d6">
+    <rect x="150" y="180" width="284" height="40" rx="4"/><rect x="438" y="180" width="284" height="40" rx="4"/>
+  </g>
+  <g text-anchor="middle" font-size="12" fill="#333">
+    <text x="292" y="204">merged</text><text x="580" y="204">merged</text>
+  </g>
+
+  <!-- Pass 3 -->
+  <text x="20" y="267" font-weight="bold">Pass 3</text>
+  <text x="20" y="285" font-size="12" fill="#555">1 run of 8 pages</text>
+  <g stroke="#c2410c" stroke-width="2" fill="#ffd9b3">
+    <rect x="150" y="250" width="572" height="40" rx="4"/>
+  </g>
+  <text x="436" y="274" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">fully sorted</text>
+
+  <text x="20" y="320" font-size="13" fill="#444">N = 8 pages, 2-way merge: passes = 1 + log2(8) = 4. Every pass reads and writes all 8 pages, so I/O = 2 x 8 x 4 = 64 page transfers.</text>
+</svg>

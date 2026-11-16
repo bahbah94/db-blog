@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 330" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <text x="20" y="26" font-weight="bold">Without double buffering: the CPU waits for the disk, then the disk waits for the CPU</text>
+  <g stroke-width="2">
+    <rect x="120" y="40" width="90" height="34" fill="#e6f0ff" stroke="#4a78c2"/>
+    <rect x="210" y="40" width="90" height="34" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="300" y="40" width="90" height="34" fill="#e6f0ff" stroke="#4a78c2"/>
+    <rect x="390" y="40" width="90" height="34" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="480" y="40" width="90" height="34" fill="#e6f0ff" stroke="#4a78c2"/>
+    <rect x="570" y="40" width="90" height="34" fill="#e3f6e3" stroke="#2f8f4e"/>
+  </g>
+  <g text-anchor="middle" font-size="12" fill="#333">
+    <text x="165" y="61">read</text><text x="255" y="61">merge</text><text x="345" y="61">read</text>
+    <text x="435" y="61">merge</text><text x="525" y="61">read</text><text x="615" y="61">merge</text>
+  </g>
+  <text x="20" y="62" font-size="12" fill="#555">one lane</text>
+  <line x1="660" y1="92" x2="660" y2="100" stroke="#c0392b" stroke-width="2"/>
+  <text x="660" y="116" text-anchor="middle" font-size="12" fill="#c0392b" font-weight="bold">done at t = 6</text>
+
+  <line x1="20" y1="140" x2="740" y2="140" stroke="#ddd"/>
+
+  <text x="20" y="168" font-weight="bold">With double buffering: prefetch the next chunk while merging the current one</text>
+  <text x="20" y="206" font-size="12" fill="#555">disk I/O</text>
+  <text x="20" y="250" font-size="12" fill="#555">CPU merge</text>
+  <g stroke-width="2">
+    <rect x="120" y="184" width="90" height="34" fill="#e6f0ff" stroke="#4a78c2"/>
+    <rect x="210" y="184" width="90" height="34" fill="#e6f0ff" stroke="#4a78c2"/>
+    <rect x="300" y="184" width="90" height="34" fill="#e6f0ff" stroke="#4a78c2"/>
+    <rect x="210" y="228" width="90" height="34" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="300" y="228" width="90" height="34" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="390" y="228" width="90" height="34" fill="#e3f6e3" stroke="#2f8f4e"/>
+  </g>
+  <g text-anchor="middle" font-size="12" fill="#333">
+    <text x="165" y="205">read 1</text><text x="255" y="205">prefetch 2</text><text x="345" y="205">prefetch 3</text>
+    <text x="255" y="249">merge 1</text><text x="345" y="249">merge 2</text><text x="435" y="249">merge 3</text>
+  </g>
+  <line x1="480" y1="276" x2="480" y2="284" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="480" y="300" text-anchor="middle" font-size="12" fill="#2f8f4e" font-weight="bold">done at t = 4</text>
+
+  <text x="20" y="324" font-size="13" fill="#444">Price: half of the buffer pages are now used for prefetching, so fewer runs can be merged at once.</text>
+</svg>

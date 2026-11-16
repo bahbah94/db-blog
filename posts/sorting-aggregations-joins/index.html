@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.11.9">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Randall Kharkrang">
+<meta name="dcterms.date" content="2026-11-16">
+<meta name="description" content="Top-N heaps, external merge sort, sorting- and hashing-based aggregation, and the join algorithms (nested loop, sort-merge, hash join): how a disk-oriented database handles more data than fits in RAM.">
+
+<title>Sorting, Aggregations and Joins – Database Notes</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-56996c7b5257095e64120a8d6d543cad.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<script src="../../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Database Notes</span>
+    </a>
+  </div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+            <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Sorting, Aggregations and Joins</h1>
+            <p class="subtitle lead">How a database orders, groups and joins data that does not fit in memory</p>
+                  <div>
+        <div class="description">
+          Top-N heaps, external merge sort, sorting- and hashing-based aggregation, and the join algorithms (nested loop, sort-merge, hash join): how a disk-oriented database handles more data than fits in RAM.
+        </div>
+      </div>
+                          <div class="quarto-categories">
+                <div class="quarto-category">databases</div>
+                <div class="quarto-category">sorting</div>
+                <div class="quarto-category">aggregation</div>
+                <div class="quarto-category">query-execution</div>
+                <div class="quarto-category">cmu-15445</div>
+              </div>
+                  </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Randall Kharkrang </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">November 16, 2026</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#where-we-are-in-the-stack" id="toc-where-we-are-in-the-stack" class="nav-link active" data-scroll-target="#where-we-are-in-the-stack">Where we are in the stack</a></li>
+  <li><a href="#why-would-a-database-sort-at-all" id="toc-why-would-a-database-sort-at-all" class="nav-link" data-scroll-target="#why-would-a-database-sort-at-all">Why would a database sort at all?</a></li>
+  <li><a href="#sorting" id="toc-sorting" class="nav-link" data-scroll-target="#sorting">Sorting</a>
+  <ul class="collapse">
+  <li><a href="#if-it-fits-in-memory-life-is-easy" id="toc-if-it-fits-in-memory-life-is-easy" class="nav-link" data-scroll-target="#if-it-fits-in-memory-life-is-easy">If it fits in memory, life is easy</a></li>
+  <li><a href="#what-exactly-gets-sorted" id="toc-what-exactly-gets-sorted" class="nav-link" data-scroll-target="#what-exactly-gets-sorted">What exactly gets sorted?</a></li>
+  <li><a href="#top-n-do-not-sort-everything-keep-a-leaderboard" id="toc-top-n-do-not-sort-everything-keep-a-leaderboard" class="nav-link" data-scroll-target="#top-n-do-not-sort-everything-keep-a-leaderboard">Top-N: do not sort everything, keep a leaderboard</a></li>
+  <li><a href="#external-merge-sort" id="toc-external-merge-sort" class="nav-link" data-scroll-target="#external-merge-sort">External merge sort</a></li>
+  <li><a href="#making-comparisons-cheaper" id="toc-making-comparisons-cheaper" class="nav-link" data-scroll-target="#making-comparisons-cheaper">Making comparisons cheaper</a></li>
+  <li><a href="#can-an-index-do-the-sorting-for-us" id="toc-can-an-index-do-the-sorting-for-us" class="nav-link" data-scroll-target="#can-an-index-do-the-sorting-for-us">Can an index do the sorting for us?</a></li>
+  </ul></li>
+  <li><a href="#aggregations" id="toc-aggregations" class="nav-link" data-scroll-target="#aggregations">Aggregations</a>
+  <ul class="collapse">
+  <li><a href="#aggregation-by-sorting" id="toc-aggregation-by-sorting" class="nav-link" data-scroll-target="#aggregation-by-sorting">Aggregation by sorting</a></li>
+  <li><a href="#aggregation-by-hashing" id="toc-aggregation-by-hashing" class="nav-link" data-scroll-target="#aggregation-by-hashing">Aggregation by hashing</a></li>
+  <li><a href="#sorting-or-hashing" id="toc-sorting-or-hashing" class="nav-link" data-scroll-target="#sorting-or-hashing">Sorting or hashing?</a></li>
+  </ul></li>
+  <li><a href="#joins" id="toc-joins" class="nav-link" data-scroll-target="#joins">Joins</a>
+  <ul class="collapse">
+  <li><a href="#why-joins-exist" id="toc-why-joins-exist" class="nav-link" data-scroll-target="#why-joins-exist">Why joins exist</a></li>
+  <li><a href="#what-does-a-join-emit" id="toc-what-does-a-join-emit" class="nav-link" data-scroll-target="#what-does-a-join-emit">What does a join emit?</a></li>
+  <li><a href="#how-do-we-compare-join-algorithms" id="toc-how-do-we-compare-join-algorithms" class="nav-link" data-scroll-target="#how-do-we-compare-join-algorithms">How do we compare join algorithms?</a></li>
+  <li><a href="#nested-loop-joins" id="toc-nested-loop-joins" class="nav-link" data-scroll-target="#nested-loop-joins">Nested loop joins</a></li>
+  <li><a href="#sort-merge-join" id="toc-sort-merge-join" class="nav-link" data-scroll-target="#sort-merge-join">Sort-merge join</a></li>
+  <li><a href="#hash-join" id="toc-hash-join" class="nav-link" data-scroll-target="#hash-join">Hash join</a></li>
+  <li><a href="#partitioned-hash-join-grace" id="toc-partitioned-hash-join-grace" class="nav-link" data-scroll-target="#partitioned-hash-join-grace">Partitioned hash join (GRACE)</a></li>
+  <li><a href="#recursive-partitioning-and-edge-cases" id="toc-recursive-partitioning-and-edge-cases" class="nav-link" data-scroll-target="#recursive-partitioning-and-edge-cases">Recursive partitioning and edge cases</a></li>
+  <li><a href="#the-join-algorithms-side-by-side" id="toc-the-join-algorithms-side-by-side" class="nav-link" data-scroll-target="#the-join-algorithms-side-by-side">The join algorithms side by side</a></li>
+  </ul></li>
+  <li><a href="#cheat-sheet" id="toc-cheat-sheet" class="nav-link" data-scroll-target="#cheat-sheet">Cheat sheet</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content quarto-banner-title-block" id="quarto-document-content" tabindex="-1">
+
+
+
+
+
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Slides this post is based on:</strong> <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/11-sorting.pdf">Sorting and Aggregations</a> and <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/12-joins.pdf">Joins</a> from CMU 15-445/645 (Prof.&nbsp;Andy Pavlo).</p>
+<p>The ideas come from those slides. The diagrams, examples and analogies are my own, so any mistakes are mine. The post has three parts: <strong>sorting</strong>, <strong>aggregations</strong>, and <strong>joins</strong>.</p>
+</div>
+</div>
+</div>
+<section id="where-we-are-in-the-stack" class="level2">
+<h2 class="anchored" data-anchor-id="where-we-are-in-the-stack">Where we are in the stack</h2>
+<p>So far we have looked at how a database stores pages on disk, caches them in a <a href="../../posts/buffer-pool/index.html">buffer pool</a>, and finds rows quickly with <a href="../../posts/indexes/index.html">indexes</a>. Now we turn to the layer above: <strong>executing a query</strong>.</p>
+<p>A SQL query is turned into a <strong>plan</strong>: a tree of operators (scan, filter, sort, group, join…). Data flows from the leaves up to the root, and whatever the root emits is the answer.</p>
+<p>Each operator is an <em>algorithm</em>, and each algorithm has to live with one uncomfortable fact:</p>
+<blockquote class="blockquote">
+<p>A disk-oriented DBMS cannot assume that a table fits in memory, and it cannot assume that the <strong>intermediate results</strong> of a query fit in memory either.</p>
+</blockquote>
+<p>So the rules of the game for this whole post are:</p>
+<ul>
+<li>Use the <strong>buffer pool</strong> for working memory, and <strong>spill to disk</strong> when it is not enough.</li>
+<li>Prefer algorithms that do <strong>sequential I/O</strong>, because reading consecutive pages is far cheaper than hopping around.</li>
+<li>Count cost in <strong>page I/Os</strong>, since that dominates CPU time when data lives on disk.</li>
+</ul>
+</section>
+<section id="why-would-a-database-sort-at-all" class="level2">
+<h2 class="anchored" data-anchor-id="why-would-a-database-sort-at-all">Why would a database sort at all?</h2>
+<p>SQL is built on the relational model, which is <strong>unordered</strong>: a table is a set of rows with no inherent order. Yet sorting shows up everywhere:</p>
+<ul>
+<li>The user asks for it: <code>ORDER BY</code>.</li>
+<li><strong><code>DISTINCT</code></strong> becomes trivial on sorted data: duplicates sit next to each other.</li>
+<li><strong><code>GROUP BY</code></strong> becomes trivial too: all rows of a group are adjacent.</li>
+<li><strong>Bulk-loading a B+Tree</strong> is much faster if you feed it sorted keys (see the bulk insert section of the <a href="../../posts/indexes/index.html">indexes post</a>).</li>
+</ul>
+<p>So a sorting operator is a workhorse, and it has to work on data of any size.</p>
+</section>
+<section id="sorting" class="level2">
+<h2 class="anchored" data-anchor-id="sorting">Sorting</h2>
+<section id="if-it-fits-in-memory-life-is-easy" class="level3">
+<h3 class="anchored" data-anchor-id="if-it-fits-in-memory-life-is-easy">If it fits in memory, life is easy</h3>
+<p>When all the data fits in RAM, the DBMS just uses a standard algorithm: QuickSort, TimSort, RadixSort, or something tuned for nearly-sorted input. Nothing database-specific is needed.</p>
+<p>The interesting case is when the data is <strong>bigger than memory</strong>. Then the algorithm must be aware of the cost of reading and writing pages.</p>
+</section>
+<section id="what-exactly-gets-sorted" class="level3">
+<h3 class="anchored" data-anchor-id="what-exactly-gets-sorted">What exactly gets sorted?</h3>
+<p>A sort takes a list of entries and orders them by a <strong>key</strong> (the column or columns in <code>ORDER BY</code>). The question is what travels along with the key, the <strong>value</strong>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Approach</th>
+<th>What is sorted</th>
+<th>Pros / cons</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Early materialization</strong></td>
+<td><code>(key, whole tuple)</code></td>
+<td>Output is ready to use, no extra lookups. But every move copies the full tuple.</td>
+</tr>
+<tr class="even">
+<td><strong>Late materialization</strong></td>
+<td><code>(key, record id)</code></td>
+<td>Tiny entries, cheap to shuffle. But afterwards each record id must be followed back to the table to fetch the row, which is random I/O.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="top-n-do-not-sort-everything-keep-a-leaderboard" class="level3">
+<h3 class="anchored" data-anchor-id="top-n-do-not-sort-everything-keep-a-leaderboard">Top-N: do not sort everything, keep a leaderboard</h3>
+<p>Suppose the query is:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> enrolled</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a> <span class="kw">ORDER</span> <span class="kw">BY</span> sid <span class="kw">ASC</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a> FETCH <span class="fu">FIRST</span> <span class="dv">4</span> <span class="kw">ROWS</span> <span class="kw">WITH</span> TIES;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You want the best 4 rows out of a billion. Sorting the whole table to throw away almost everything would be silly.</p>
+<p><strong>The idea.</strong> Scan the table <strong>once</strong>, page by page, while maintaining a small in-memory <strong>priority queue</strong> (the lecture calls it a sorted heap) that holds the best <span class="math inline">\(N\)</span> rows seen so far. Think of it as a leaderboard with <span class="math inline">\(N\)</span> slots:</p>
+<ul>
+<li>If the leaderboard is not full, the new row gets in.</li>
+<li>If it is full, compare the new row with the <strong>worst</strong> row on the board. If the new row is better, it takes that place and the old worst row is dropped. Otherwise, throw the new row away.</li>
+</ul>
+<p>A subtlety your intuition might trip on: to keep the <strong>smallest</strong> <span class="math inline">\(N\)</span> you want quick access to the <strong>largest</strong> one on the board (the one to evict), so the heap is a <em>max</em>-heap in that case. To keep the largest <span class="math inline">\(N\)</span>, use a <em>min</em>-heap. In both cases the heap’s root is “the worst of the winners.”</p>
+<div id="fig-topn" class="quarto-float quarto-figure quarto-figure-center anchored" alt="A step-by-step table. Each row shows one input value being read and the heap contents after it: values are inserted until the heap has 4 entries, 9 is skipped, 1 evicts 6, and two more 4s are kept because they tie with the worst kept value.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-topn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/top-n-heap.svg" class="img-fluid figure-img" alt="A step-by-step table. Each row shows one input value being read and the heap contents after it: values are inserted until the heap has 4 entries, 9 is skipped, 1 evicts 6, and two more 4s are kept because they tie with the worst kept value.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-topn-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Top-4 over the stream 3 4 6 2 9 1 4 4. The heap never holds more than about N values, no matter how long the stream is.
+</figcaption>
+</figure>
+</div>
+<p>Notice <code>WITH TIES</code>: once the 4th place is held by a <code>4</code>, any later <code>4</code> ties with it and must also be returned, which is why the answer in <a href="#fig-topn" class="quarto-xref">Figure&nbsp;1</a> has six rows.</p>
+<p><strong>Cost.</strong> One sequential scan, <span class="math inline">\(O(\log N)\)</span> work per row for the heap, and memory for only about <span class="math inline">\(N\)</span> rows. This is the ideal plan whenever the top-<span class="math inline">\(N\)</span> fits in memory. If <span class="math inline">\(N\)</span> itself is too big, we need the general algorithm below.</p>
+</section>
+<section id="external-merge-sort" class="level3">
+<h3 class="anchored" data-anchor-id="external-merge-sort">External merge sort</h3>
+<p>Now the full problem: sort a table of <span class="math inline">\(N\)</span> pages using only <span class="math inline">\(B\)</span> pages of buffer memory, where <span class="math inline">\(B \ll N\)</span>.</p>
+<p><strong>The analogy.</strong> You have to alphabetize ten thousand index cards but your desk only fits 100 at a time. So you:</p>
+<ol type="1">
+<li>Take 100 cards, sort them on the desk, and put them down as a <strong>sorted pile</strong>. Repeat until all the cards are in sorted piles.</li>
+<li>Merge piles: look at the top card of several piles, take the smallest, repeat. Merged piles become bigger sorted piles.</li>
+<li>Keep going until one pile remains.</li>
+</ol>
+<p>That is <strong>external merge sort</strong>, a divide-and-conquer algorithm. Each sorted pile is called a <strong>run</strong>, and the algorithm makes several passes over the data, not one.</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    A["Unsorted table: N pages on disk"] --&gt; B["Pass 0: read B pages, sort them in memory, write them out as one sorted run"]
+    B --&gt; C{"More pages left?"}
+    C -- "yes" --&gt; B
+    C -- "no" --&gt; D["About N/B sorted runs on disk"]
+    D --&gt; E["Pass 1, 2, ...: merge B-1 runs at a time into one longer run, using 1 buffer for output"]
+    E --&gt; F{"Only one run left?"}
+    F -- "no" --&gt; E
+    F -- "yes" --&gt; G["Fully sorted file"]
+</pre>
+</div>
+<p></p><figcaption> External merge sort in two kinds of passes.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<section id="pass-0-make-sorted-runs" class="level4">
+<h4 class="anchored" data-anchor-id="pass-0-make-sorted-runs">Pass 0: make sorted runs</h4>
+<p>Fill all <span class="math inline">\(B\)</span> buffer pages with data from the table, sort them in memory with any algorithm you like, and write them back out as a run of <span class="math inline">\(B\)</span> pages. Repeat until the table is consumed. You end up with <span class="math inline">\(\lceil N/B \rceil\)</span> sorted runs.</p>
+</section>
+<section id="pass-1-2-3-merge-runs" class="level4">
+<h4 class="anchored" data-anchor-id="pass-1-2-3-merge-runs">Pass 1, 2, 3…: merge runs</h4>
+<p>Now take as many runs as the buffer allows. With <span class="math inline">\(B\)</span> buffers, one is reserved for the <strong>output</strong>, so you can merge <span class="math inline">\(B - 1\)</span> runs at once (a <span class="math inline">\((B-1)\)</span>-way merge). Each input run gets exactly one buffer page.</p>
+<div id="fig-merge" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Three sorted runs on disk feed three input buffers. A merge box picks the smallest head key, here 3 from run B, and sends keys to an output buffer holding 1 and 2, which is flushed to a longer sorted run on disk.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-merge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/merge-buffers.svg" class="img-fluid figure-img" alt="Three sorted runs on disk feed three input buffers. A merge box picks the smallest head key, here 3 from run B, and sends keys to an output buffer holding 1 and 2, which is flushed to a longer sorted run on disk.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-merge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: One merge step with B = 4: three input buffers (one per run) and one output buffer. The smallest head key wins.
+</figcaption>
+</figure>
+</div>
+<p>Look at <a href="#fig-merge" class="quarto-xref">Figure&nbsp;2</a>. Because every run is sorted, the smallest key left among all the runs must be one of the runs’ <em>current first</em> keys. So the merge only ever compares a handful of head keys (a tiny heap makes this cheap). Whenever an input page is used up, read that run’s next page; whenever the output page fills up, write it out. No page is ever held longer than needed.</p>
+<p>Repeat these passes: each one turns groups of <span class="math inline">\(B-1\)</span> runs into a single longer run, until one run, the sorted file, remains.</p>
+</section>
+<section id="the-2-way-version" class="level4">
+<h4 class="anchored" data-anchor-id="the-2-way-version">The 2-way version</h4>
+<p>The simplest version uses only <span class="math inline">\(B = 3\)</span> buffers: two input pages and one output page, merging pairs of runs. Each pass doubles the run length:</p>
+<div id="fig-passes" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Four horizontal bands. Pass 0 has 8 blocks of one page, pass 1 has 4 blocks of two pages, pass 2 has 2 blocks of four pages, pass 3 has one block of eight pages.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-passes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/ext-sort-passes.svg" class="img-fluid figure-img" alt="Four horizontal bands. Pass 0 has 8 blocks of one page, pass 1 has 4 blocks of two pages, pass 2 has 2 blocks of four pages, pass 3 has one block of eight pages.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-passes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: 2-way external merge sort on 8 pages. Runs double in length each pass: 1, 2, 4, 8 pages.
+</figcaption>
+</figure>
+</div>
+<p>The number of passes is <span class="math inline">\(1 + \lceil \log_2 N \rceil\)</span>, and <strong>every pass reads and writes every page</strong>, so:</p>
+<p><span class="math display">\[
+\text{I/O cost} = 2N \cdot (\text{number of passes})
+\]</span></p>
+</section>
+<section id="the-general-version" class="level4">
+<h4 class="anchored" data-anchor-id="the-general-version">The general version</h4>
+<p>With <span class="math inline">\(B\)</span> buffers, pass 0 produces <span class="math inline">\(\lceil N/B \rceil\)</span> runs and each later pass merges <span class="math inline">\(B-1\)</span> of them, so:</p>
+<p><span class="math display">\[
+\text{passes} = 1 + \left\lceil \log_{B-1} \left\lceil \frac{N}{B} \right\rceil \right\rceil
+\qquad
+\text{I/O cost} = 2N \cdot \text{passes}
+\]</span></p>
+<p><strong>Worked example</strong> (from the slides): sort <span class="math inline">\(N = 108\)</span> pages with <span class="math inline">\(B = 5\)</span> buffers.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Pass</th>
+<th>What happens</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>Sort chunks of 5 pages: <span class="math inline">\(\lceil 108/5 \rceil\)</span></td>
+<td>22 runs of 5 pages (the last one has 3)</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>Merge 4 runs at a time: <span class="math inline">\(\lceil 22/4 \rceil\)</span></td>
+<td>6 runs of 20 pages (the last one has 8)</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>Merge 4 runs at a time: <span class="math inline">\(\lceil 6/4 \rceil\)</span></td>
+<td>2 runs, of 80 and 28 pages</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>Merge the last 2</td>
+<td>1 sorted run of 108 pages</td>
+</tr>
+</tbody>
+</table>
+<p>That is <span class="math inline">\(1 + \lceil \log_4 22 \rceil = 1 + \lceil 2.23 \rceil = 4\)</span> passes, so <span class="math inline">\(2 \times 108 \times 4 = 864\)</span> page I/Os.</p>
+<p><strong>How far does this scale?</strong> After pass 0 there are about <span class="math inline">\(N/B\)</span> runs. If that number is at most <span class="math inline">\(B-1\)</span>, a single merge pass finishes the job, so <strong>two passes</strong> suffice whenever</p>
+<p><span class="math display">\[
+N \le B \cdot (B - 1)
+\]</span></p>
+<p>With a buffer of just <span class="math inline">\(B = 1000\)</span> pages of 16 KB (about 16 MB), that is roughly a million pages, or <strong>~16 GB</strong>, sorted in two passes. A third pass pushes the limit to about <span class="math inline">\(B(B-1)^2\)</span> pages, around 16 TB. This is why external sorting is practical: the number of passes grows incredibly slowly.</p>
+<p>A concrete comparison for <span class="math inline">\(N = 900{,}000\)</span> pages:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Algorithm</th>
+<th>Passes</th>
+<th>I/O</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>2-way merge (<span class="math inline">\(B = 3\)</span>)</td>
+<td><span class="math inline">\(1 + \lceil \log_2 900000 \rceil = 21\)</span></td>
+<td><span class="math inline">\(2 \cdot 900000 \cdot 21 = 37.8\)</span> M</td>
+</tr>
+<tr class="even">
+<td>General merge with <span class="math inline">\(B = 1000\)</span></td>
+<td>2</td>
+<td><span class="math inline">\(2 \cdot 900000 \cdot 2 = 3.6\)</span> M</td>
+</tr>
+</tbody>
+</table>
+<p>The only thing that changed is how much buffer memory we use, and the I/O dropped by about 10x.</p>
+</section>
+<section id="double-buffering" class="level4">
+<h4 class="anchored" data-anchor-id="double-buffering">Double buffering</h4>
+<p>There is still a hidden inefficiency: while the DBMS waits for a page to come from disk, the CPU sits idle, and while the CPU merges, the disk sits idle.</p>
+<p><strong>Double buffering</strong> overlaps them. While the CPU merges the current chunk, a background request <strong>prefetches</strong> the next chunk into a second set of buffers.</p>
+<div id="fig-dbuf" class="quarto-float quarto-figure quarto-figure-center anchored" alt="A timeline. Without double buffering, read and merge blocks alternate on a single lane and finish at time 6. With double buffering, reads and merges run in parallel lanes and finish at time 4.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-dbuf-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/double-buffering.svg" class="img-fluid figure-img" alt="A timeline. Without double buffering, read and merge blocks alternate on a single lane and finish at time 6. With double buffering, reads and merges run in parallel lanes and finish at time 4.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-dbuf-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Top: reading and merging alternate, so each waits for the other. Bottom: the next read overlaps with the current merge.
+</figcaption>
+</figure>
+</div>
+<p>The price is that half of the buffer pages are now reserved for prefetching, so the effective <span class="math inline">\(B\)</span> shrinks and fewer runs can be merged per pass. Usually that trade is worth it, because I/O wait is the bigger cost. The slides’ conclusion on sorting is the same pair of ideas: <strong>chunk I/O into large blocks</strong> to amortize the cost, and <strong>double-buffer</strong> to overlap CPU and I/O.</p>
+</section>
+</section>
+<section id="making-comparisons-cheaper" class="level3">
+<h3 class="anchored" data-anchor-id="making-comparisons-cheaper">Making comparisons cheaper</h3>
+<p>Sorting is dominated by comparisons, so databases shave them down:</p>
+<p><strong>1. Code specialization.</strong> A generic sort takes a <em>comparison function pointer</em>, which means an indirect call for every comparison. Instead, the DBMS can generate (or compile, using templates or JIT) a version of the sort that is <strong>hard-coded for the key type</strong>: “sort 4-byte integers ascending.” The comparison is then inlined and the CPU can optimize it, with no pointer chasing. The decision about <em>how</em> to compare is made before the sort runs, not during it.</p>
+<p><strong>2. Suffix truncation</strong> (as the slides call it here). Comparing long <code>VARCHAR</code>s is slow. So first compare a short fixed-size <strong>binary prefix</strong> of each key, say the first 8 bytes. Most of the time the prefixes already differ and you are done. Only if they are equal fall back to the slow full comparison.</p>
+<p><strong>3. Key normalization.</strong> Transform a (possibly multi-column, variable-length, mixed-direction) key into a <strong>single byte string</strong> such that comparing the bytes with a plain <code>memcmp</code> gives the correct sort order. One common trick for a signed 32-bit integer is to flip its sign bit and store it big-endian:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Value</th>
+<th>Normalized bytes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>-1</td>
+<td><code>7F FF FF FF</code></td>
+</tr>
+<tr class="even">
+<td>0</td>
+<td><code>80 00 00 00</code></td>
+</tr>
+<tr class="odd">
+<td>1</td>
+<td><code>80 00 00 01</code></td>
+</tr>
+</tbody>
+</table>
+<p>Now unsigned byte comparison orders them correctly: <span class="math inline">\(-1 &lt; 0 &lt; 1\)</span>. (That example is my illustration of the idea; the slides only name the technique.)</p>
+</section>
+<section id="can-an-index-do-the-sorting-for-us" class="level3">
+<h3 class="anchored" data-anchor-id="can-an-index-do-the-sorting-for-us">Can an index do the sorting for us?</h3>
+<p>If the table already has a B+Tree on the sort key, we may not need to sort at all: walk the leaf level from left to right and the keys come out in order. Whether this is a good idea depends on whether the index is clustered.</p>
+<div id="fig-clustered" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two panels. In the clustered panel, arrows from leaf entries 10 to 60 point to pages 101, 102 and 103 in order. In the unclustered panel, the arrows cross because the rows live on pages in a scrambled order.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-clustered-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/scan-clustered.svg" class="img-fluid figure-img" alt="Two panels. In the clustered panel, arrows from leaf entries 10 to 60 point to pages 101, 102 and 103 in order. In the unclustered panel, the arrows cross because the rows live on pages in a scrambled order.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-clustered-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Clustered vs.&nbsp;unclustered: the same index leaf walk, very different page-access patterns.
+</figcaption>
+</figure>
+</div>
+<p><strong>Case 1: clustered B+Tree.</strong> The rows themselves are stored in key order. Go to the leftmost leaf and follow the sibling pointers. All disk access is <strong>sequential</strong>, and there is no sorting cost. The lecture’s verdict: this is <strong>always better</strong> than an external sort.</p>
+<p><strong>Case 2: unclustered B+Tree.</strong> Each leaf entry points to a row somewhere else. Following those pointers in key order means <strong>roughly one random I/O per row</strong>. The verdict: this is <strong>almost always a bad idea</strong>, with one exception: <strong>Top-N queries with a small N</strong>, where you only chase a few pointers.</p>
+<p>(In the <a href="../../posts/indexes/index.html">indexes post</a> we saw a mitigation, <em>index scan page sorting</em>, which fetches the pages in page order instead of key order. That only helps when you do not need the output in key order.)</p>
+</section>
+</section>
+<section id="aggregations" class="level2">
+<h2 class="anchored" data-anchor-id="aggregations">Aggregations</h2>
+<p>An <strong>aggregation</strong> collapses many rows into one value per group: <code>SUM</code>, <code>COUNT</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>, with or without <code>GROUP BY</code>. <code>DISTINCT</code> is the same idea in disguise: “group by every column, output the groups.”</p>
+<p>The core problem is: <strong>find all rows with the same key and bring them together</strong>. There are exactly two ways to do that:</p>
+<ol type="1">
+<li><strong>Sort</strong> the rows so equal keys are adjacent.</li>
+<li><strong>Hash</strong> the rows so equal keys land in the same place.</li>
+</ol>
+<section id="aggregation-by-sorting" class="level3">
+<h3 class="anchored" data-anchor-id="aggregation-by-sorting">Aggregation by sorting</h3>
+<p>Take this query:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="kw">DISTINCT</span> cid</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">FROM</span> enrolled</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> grade <span class="kw">IN</span> (<span class="st">'B'</span>, <span class="st">'C'</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a> <span class="kw">ORDER</span> <span class="kw">BY</span> cid;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart LR
+    A["Scan enrolled"] --&gt; B["Filter: grade in (B, C)"]
+    B --&gt; C["Project: keep only cid"]
+    C --&gt; D["Sort by cid"]
+    D --&gt; E["Drop adjacent duplicates"]
+    E --&gt; F["Result"]
+</pre>
+</div>
+<p></p><figcaption> The plan for DISTINCT + ORDER BY using sorting.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>Filter and projection shrink the data <em>before</em> the sort, which makes the sort cheaper (fewer pages). After sorting, duplicates are neighbours, so a single pass that skips a row equal to the previous one removes them. And the output is already ordered, so the one sort satisfies both <code>DISTINCT</code> and <code>ORDER BY</code>.</p>
+<p><strong>Running totals.</strong> For <code>GROUP BY</code> the same trick works with a <strong>running value</strong> per group. Each aggregate needs a tiny piece of state:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Aggregate</th>
+<th>State kept while scanning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>COUNT(col)</code></td>
+<td>count</td>
+</tr>
+<tr class="even">
+<td><code>SUM(col)</code></td>
+<td>sum</td>
+</tr>
+<tr class="odd">
+<td><code>MIN(col)</code> / <code>MAX(col)</code></td>
+<td>current min / max</td>
+</tr>
+<tr class="even">
+<td><code>AVG(col)</code></td>
+<td><strong>(count, sum)</strong>; divide at the end</td>
+</tr>
+</tbody>
+</table>
+<p>Because the input is sorted, once the key changes, that group is <strong>complete</strong> and can be emitted immediately, then the state resets for the next group. Here is <code>AVG(gpa) ... GROUP BY cid</code> from the slides, on the sorted rows:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Sorted row (cid, gpa)</th>
+<th>Key changed?</th>
+<th>Running state <code>(count, sum)</code></th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>15-445, 3.62</td>
+<td>start</td>
+<td>(1, 3.62)</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>15-445, 3.70</td>
+<td>no</td>
+<td>(2, 7.32)</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>15-721, 3.33</td>
+<td><strong>yes</strong></td>
+<td>(1, 3.33)</td>
+<td><strong>15-445: 7.32 / 2 = 3.66</strong></td>
+</tr>
+<tr class="even">
+<td>15-826, 2.89</td>
+<td><strong>yes</strong></td>
+<td>(1, 2.89)</td>
+<td><strong>15-721: 3.33</strong></td>
+</tr>
+<tr class="odd">
+<td>end of input</td>
+<td></td>
+<td></td>
+<td><strong>15-826: 2.89</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Memory use is tiny (one running state), and the only expensive part is the sort itself.</p>
+</section>
+<section id="aggregation-by-hashing" class="level3">
+<h3 class="anchored" data-anchor-id="aggregation-by-hashing">Aggregation by hashing</h3>
+<p>Sorting does more work than needed when the query does <strong>not</strong> care about order. <code>GROUP BY</code> and <code>DISTINCT</code> only need rows with equal keys to meet; they do not need the groups in any particular order. Hashing is the better tool: no ordering means a computationally cheaper algorithm.</p>
+<p><strong>If everything fits in memory</strong>, it is easy: build a hash table as you scan.</p>
+<ul>
+<li><code>DISTINCT</code>: if the key is already in the table, discard the row; otherwise insert it.</li>
+<li><code>GROUP BY</code>: if the key is in the table, update its running value; otherwise insert a new entry.</li>
+</ul>
+<p>The table holds <code>GroupKey -&gt; RunningValue</code> pairs, using the same running-value state as above (so <code>AVG</code> stores <code>(count, sum)</code>).</p>
+<p><strong>If it does not fit</strong>, we need external hashing aggregation, which again is divide-and-conquer, in two phases. Here it is on a small example, grouping these keys (with <code>h1(key) = key mod 3</code> just for illustration):</p>
+<div id="fig-hashagg" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Top: eight keys flow through hash function h1 into three on-disk partitions P0, P1 and P2. Bottom: partition P2 is read back, hashed with h2 into an in-memory table that holds 155 with count 3 and 161 with count 2, which are then emitted.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-hashagg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/hash-aggregate.svg" class="img-fluid figure-img" alt="Top: eight keys flow through hash function h1 into three on-disk partitions P0, P1 and P2. Bottom: partition P2 is read back, hashed with h2 into an in-memory table that holds 155 with count 3 and 161 with count 2, which are then emitted.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-hashagg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: External hashing aggregation. Phase 1 splits tuples into partitions on disk with h1. Phase 2 reads one partition at a time and aggregates it in an in-memory hash table built with a different function, h2.
+</figcaption>
+</figure>
+</div>
+<p><strong>Phase 1: partition.</strong> Scan the table and apply a hash function <span class="math inline">\(h_1\)</span> to each key to choose a <strong>partition</strong>. With <span class="math inline">\(B\)</span> buffers, use <span class="math inline">\(B-1\)</span> as output buffers (one per partition) and 1 as the input buffer. When a partition’s buffer fills, write it to disk. After the scan, every row is in some partition file on disk.</p>
+<p>The key property: <strong>equal keys always go to the same partition</strong> (same input, same hash). Different keys <em>can</em> share a partition, as 155 and 161 do in <a href="#fig-hashagg" class="quarto-xref">Figure&nbsp;6</a>.</p>
+<p><strong>Phase 2: rehash.</strong> For each partition, one at a time:</p>
+<ol type="1">
+<li>Read it into memory.</li>
+<li>Build an in-memory hash table with a <strong>second</strong> hash function <span class="math inline">\(h_2\)</span>, storing <code>GroupKey -&gt; RunningValue</code>.</li>
+<li>When the partition is exhausted, <strong>emit</strong> the table’s contents as final results.</li>
+<li>Throw the table away and move on to the next partition.</li>
+</ol>
+<p>Step 4 is safe precisely because of the property above: since all copies of 155 were in this partition, no other partition will ever contain 155. Each group is complete the moment its partition is done.</p>
+<p>A few details worth understanding:</p>
+<ul>
+<li><strong>Why a <em>different</em> function <span class="math inline">\(h_2\)</span>?</strong> Every key in one partition has the same <span class="math inline">\(h_1\)</span> value (that is why they are together). Using <span class="math inline">\(h_1\)</span> again inside the partition would drop all of them into one bucket. A second, independent function spreads them out.</li>
+<li><strong>The table is small.</strong> What sits in memory is one entry <strong>per distinct group</strong>, not one entry per row. A partition with a million rows but 50 distinct keys needs a 50-entry table. This is what makes hash aggregation so economical.</li>
+<li><strong>The assumption.</strong> The slides assume each partition’s table fits in memory. If one does not, the usual escape is to partition that partition again with yet another hash function (the same recursive idea reappears with joins).</li>
+<li><strong>I/O cost, back of the envelope.</strong> Phase 1 reads the table and writes the partitions; phase 2 reads the partitions back. With no filtering that is roughly <span class="math inline">\(3N\)</span> page I/Os, regardless of how large <span class="math inline">\(N\)</span> is. Compare that with sorting, which needs at least <span class="math inline">\(2N \times 2 = 4N\)</span> even in the best two-pass case. (This is my estimate, not a number from the slides.)</li>
+</ul>
+</section>
+<section id="sorting-or-hashing" class="level3">
+<h3 class="anchored" data-anchor-id="sorting-or-hashing">Sorting or hashing?</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Sort-based</th>
+<th>Hash-based</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Output order</td>
+<td>Sorted by the group key (free <code>ORDER BY</code>)</td>
+<td>Arbitrary</td>
+</tr>
+<tr class="even">
+<td>Typical cost</td>
+<td>A full external sort (2 or more passes)</td>
+<td>Partition once, read once</td>
+</tr>
+<tr class="odd">
+<td>Memory</td>
+<td>Needs merge buffers</td>
+<td>One table entry per group</td>
+</tr>
+<tr class="even">
+<td>Skewed data</td>
+<td>Handles uneven key distributions gracefully</td>
+<td>A very popular key makes one partition huge</td>
+</tr>
+<tr class="odd">
+<td>Best when</td>
+<td>The result must be sorted, or data is already sorted/indexed</td>
+<td>Order is irrelevant</td>
+</tr>
+</tbody>
+</table>
+<p>The lecture’s conclusion is that the choice is subtle and depends on the optimizations on each side. Hashing is usually cheaper when you do not need order; sorting wins when the output must be sorted or the data is lopsided. Good systems implement <strong>both</strong> and let the optimizer choose.</p>
+</section>
+</section>
+<section id="joins" class="level2">
+<h2 class="anchored" data-anchor-id="joins">Joins</h2>
+<section id="why-joins-exist" class="level3">
+<h3 class="anchored" data-anchor-id="why-joins-exist">Why joins exist</h3>
+<p>A well-designed relational schema is <strong>normalized</strong>: facts are stored once instead of being copied into every row that mentions them. A customer’s name lives in a <code>customers</code> table, and each order only stores a <code>customer_id</code>. That avoids repetition, but the price is that the data you want is now spread over several tables.</p>
+<p>The <strong>join</strong> operator pays that price back. It reassembles the original, wide tuples from the narrow ones without losing any information.</p>
+<p>This post only looks at <strong>binary inner equijoins</strong>: two tables, matched with <code>R.id = S.id</code>. Other join types are variations of the same algorithms, and joins of three or more tables are normally executed as a sequence of binary joins.</p>
+<p>One convention to know up front: in the plan, the <strong>smaller table is the left one, the “outer” table</strong>, and the larger one is the “inner” table. The optimizer tries to arrange this when it builds the physical plan.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> R.<span class="kw">id</span>, S.cdate</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">FROM</span> R <span class="kw">JOIN</span> S <span class="kw">ON</span> R.<span class="kw">id</span> <span class="op">=</span> S.<span class="kw">id</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> S.<span class="fu">value</span> <span class="op">&gt;</span> <span class="dv">100</span>;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="what-does-a-join-emit" class="level3">
+<h3 class="anchored" data-anchor-id="what-does-a-join-emit">What does a join emit?</h3>
+<p>For every pair of tuples <span class="math inline">\(r \in R\)</span> and <span class="math inline">\(s \in S\)</span> that match, the join produces one output tuple. What goes <em>into</em> that tuple is a design choice:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Approach</th>
+<th>Output of the join</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Early materialization</strong></td>
+<td>Copy all needed attribute values of <span class="math inline">\(r\)</span> and <span class="math inline">\(s\)</span> into a new tuple</td>
+<td>Later operators never need to go back to the base tables. The tuples are bigger, though.</td>
+</tr>
+<tr class="even">
+<td><strong>Late materialization</strong></td>
+<td>Only the join key plus the <strong>record ids</strong> of <span class="math inline">\(r\)</span> and <span class="math inline">\(s\)</span></td>
+<td>Very small output, and a good fit for column stores because unneeded columns are never copied. Later operators have to fetch the real values using the record ids.</td>
+</tr>
+</tbody>
+</table>
+<p>This is the same early/late distinction we saw for sorting.</p>
+</section>
+<section id="how-do-we-compare-join-algorithms" class="level3">
+<h3 class="anchored" data-anchor-id="how-do-we-compare-join-algorithms">How do we compare join algorithms?</h3>
+<p>Let table <span class="math inline">\(R\)</span> have <span class="math inline">\(M\)</span> pages and <span class="math inline">\(m\)</span> tuples, and table <span class="math inline">\(S\)</span> have <span class="math inline">\(N\)</span> pages and <span class="math inline">\(n\)</span> tuples. The cost metric is again the <strong>number of page I/Os</strong>. The cost of writing the output is ignored, because it is the same for every algorithm.</p>
+<p>All examples below use the numbers from the slides, with a disk that takes 0.1 ms per I/O:</p>
+<ul>
+<li><span class="math inline">\(R\)</span>: <span class="math inline">\(M = 1000\)</span> pages, <span class="math inline">\(m = 100{,}000\)</span> tuples</li>
+<li><span class="math inline">\(S\)</span>: <span class="math inline">\(N = 500\)</span> pages, <span class="math inline">\(n = 40{,}000\)</span> tuples</li>
+</ul>
+<p>One more remark: you could in principle compute the cross product <span class="math inline">\(R \times S\)</span> and then filter it, but the cross product is gigantic, and there is no clever algorithm that rescues that. Joins are so common that all the effort goes into avoiding it.</p>
+</section>
+<section id="nested-loop-joins" class="level3">
+<h3 class="anchored" data-anchor-id="nested-loop-joins">Nested loop joins</h3>
+<p>The family of nested loop joins is the most direct translation of the definition of a join: <em>for each tuple in one table, look for partners in the other.</em></p>
+<section id="naive-nested-loop-join" class="level4">
+<h4 class="anchored" data-anchor-id="naive-nested-loop-join">Naive nested loop join</h4>
+<p>Two plain <code>for</code> loops:</p>
+<pre class="text"><code>for each tuple r in R:          # outer
+    for each tuple s in S:      # inner
+        if r and s match: emit</code></pre>
+<p>Every tuple of <span class="math inline">\(R\)</span> is compared to every tuple of <span class="math inline">\(S\)</span>. It is simple, and it is the baseline every other algorithm is trying to beat. The problem is the I/O: for <strong>each tuple</strong> of <span class="math inline">\(R\)</span> we scan <strong>all of <span class="math inline">\(S\)</span></strong> from disk once.</p>
+<p><span class="math display">\[
+\text{cost} = M + (m \cdot N)
+\]</span></p>
+<p>The first <span class="math inline">\(M\)</span> is reading <span class="math inline">\(R\)</span> once. Then comes <span class="math inline">\(m\)</span> full scans of <span class="math inline">\(S\)</span>, each <span class="math inline">\(N\)</span> pages long.</p>
+<p>With the example tables: <span class="math inline">\(1000 + 100{,}000 \cdot 500 = 50{,}001{,}000\)</span> I/Os, which at 0.1 ms each is about <strong>1.4 hours</strong>. Making the smaller table the outer one helps only a little: <span class="math inline">\(500 + 40{,}000 \cdot 1000 = 40{,}000{,}500\)</span> I/Os, about 1.1 hours.</p>
+<p>Note that the number of <strong>tuples</strong> appears in this formula. That is the whole problem: we pay per tuple, even though a disk reads whole pages.</p>
+</section>
+<section id="block-nested-loop-join" class="level4">
+<h4 class="anchored" data-anchor-id="block-nested-loop-join">Block nested loop join</h4>
+<p>The fix is to stop looping per tuple and loop per <strong>block of pages</strong>. Read a block of the outer table into memory and then scan the inner table <strong>once</strong> for the <em>whole block</em>, comparing each inner tuple with every outer tuple in memory. The number of scans of <span class="math inline">\(S\)</span> then depends on the number of blocks of <span class="math inline">\(R\)</span>, not the number of tuples.</p>
+<pre class="text"><code>for each block B_R in R:
+    for each block B_S in S:
+        for each tuple r in B_R:
+            for each tuple s in B_S:
+                if r and s match: emit</code></pre>
+<p>If a “block” is a single page, the cost is already much better:</p>
+<p><span class="math display">\[
+\text{cost} = M + (M \cdot N)
+\]</span></p>
+<p>because <span class="math inline">\(S\)</span> is scanned <span class="math inline">\(M\)</span> times (once per page of <span class="math inline">\(R\)</span>) instead of <span class="math inline">\(m\)</span> times (once per tuple). With the example tables that is <span class="math inline">\(1000 + 1000 \cdot 500 = 501{,}000\)</span> I/Os, about 50 seconds. Note that the table with <em>fewer pages</em> should be the outer table, and the comparison is in pages, not tuples.</p>
+<p>It gets better when we use more of the buffer pool. With <span class="math inline">\(B\)</span> buffers, use <span class="math inline">\(B-2\)</span> of them to hold a block of the outer table, 1 for the current page of the inner table, and 1 for the output:</p>
+<div id="fig-bnlj" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Table R with six pages split into two blocks of three. A buffer pool with five buffers: three hold the current block of R, one holds the current page of S, and one is the output buffer. Table S with four pages is scanned once per block of R. The total is 6 plus 2 times 4 equals 14 page reads.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-bnlj-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/block-nested-loop.svg" class="img-fluid figure-img" alt="Table R with six pages split into two blocks of three. A buffer pool with five buffers: three hold the current block of R, one holds the current page of S, and one is the output buffer. Table S with four pages is scanned once per block of R. The total is 6 plus 2 times 4 equals 14 page reads.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-bnlj-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;7: Block nested loop join with B = 5. The outer table is read in blocks of 3 pages and S is scanned once per block.
+</figcaption>
+</figure>
+</div>
+<p><span class="math display">\[
+\text{cost} = M + \left\lceil \frac{M}{B-2} \right\rceil \cdot N
+\]</span></p>
+<p>The numbers for the example:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th>Cost</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Outer table fits entirely in memory (<span class="math inline">\(M &lt; B-2\)</span>)</td>
+<td><span class="math inline">\(M + N = 1500\)</span></td>
+<td>0.15 s</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(B = 102\)</span> buffers, <span class="math inline">\(R\)</span> outer</td>
+<td><span class="math inline">\(1000 + \lceil 1000/100 \rceil \cdot 500 = 6000\)</span></td>
+<td>0.6 s</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(B = 102\)</span> buffers, <span class="math inline">\(S\)</span> outer (smaller table)</td>
+<td><span class="math inline">\(500 + \lceil 500/100 \rceil \cdot 1000 = 5500\)</span></td>
+<td>0.55 s</td>
+</tr>
+</tbody>
+</table>
+<p>The first row deserves a remark: if one table fits in memory, we read each table exactly once and join them in memory, which is the best any algorithm can possibly do (<span class="math inline">\(M + N\)</span>). Everything else in this post is about getting as close to that as possible when it does not fit.</p>
+</section>
+<section id="index-nested-loop-join" class="level4">
+<h4 class="anchored" data-anchor-id="index-nested-loop-join">Index nested loop join</h4>
+<p>Why is the nested loop join slow? Because for each outer tuple we run a <strong>sequential scan</strong> of the inner table just to find the few tuples that match. If the inner table already has an <strong>index on the join column</strong> (such as the B+Tree from the <a href="../../posts/indexes/index.html">indexes post</a>), we can replace the scan with a lookup:</p>
+<pre class="text"><code>for each tuple r in R:
+    for each tuple s in Index(S.id = r.id):     # index probe instead of a scan
+        emit (r, s)</code></pre>
+<p>If one index probe costs about <span class="math inline">\(C\)</span> I/Os (for a B+Tree, roughly its height plus the matching leaf and data pages), then</p>
+<p><span class="math display">\[
+\text{cost} = M + (m \cdot C)
+\]</span></p>
+<p>There is no fixed number here: it depends on <span class="math inline">\(C\)</span>, which depends on the index. It is excellent when the outer table is small or filtered down to few tuples, since each outer tuple costs only one cheap lookup instead of a full scan. It is a poor choice when there is no index, and not great when the outer table is huge, since you pay <span class="math inline">\(C\)</span> for <em>every</em> tuple.</p>
+</section>
+<section id="nested-loop-takeaways" class="level4">
+<h4 class="anchored" data-anchor-id="nested-loop-takeaways">Nested loop takeaways</h4>
+<ul>
+<li>Pick the <strong>smaller table as the outer table</strong>, when possible.</li>
+<li><strong>Buffer as much of the outer table in memory</strong> as possible.</li>
+<li>Loop over the inner table, <strong>or probe an index</strong> on it.</li>
+</ul>
+</section>
+</section>
+<section id="sort-merge-join" class="level3">
+<h3 class="anchored" data-anchor-id="sort-merge-join">Sort-merge join</h3>
+<p>Nested loops compare tuples blindly. <strong>Sort-merge join</strong> uses the idea we met earlier: if both inputs are <strong>sorted</strong> on the join key, then matching tuples are found by a single coordinated walk over both tables, like a zipper.</p>
+<p><strong>Phase 1, sort.</strong> Sort <span class="math inline">\(R\)</span> and <span class="math inline">\(S\)</span> on the join key, with the external merge sort from earlier in this post (or by reading them through an index on the key).</p>
+<p><strong>Phase 2, merge.</strong> Keep one cursor on each sorted table, and compare the keys they point to:</p>
+<ol type="1">
+<li><strong>Equal:</strong> the tuples match, so emit the combined tuple and advance the cursor on <span class="math inline">\(S\)</span>.</li>
+<li><strong><span class="math inline">\(R\)</span> key &lt; <span class="math inline">\(S\)</span> key:</strong> <span class="math inline">\(R\)</span> is behind, so advance the cursor on <span class="math inline">\(R\)</span>.</li>
+<li><strong><span class="math inline">\(R\)</span> key &gt; <span class="math inline">\(S\)</span> key:</strong> <span class="math inline">\(S\)</span> is behind, so advance the cursor on <span class="math inline">\(S\)</span>.</li>
+<li>Remember the <strong>last key</strong> that was matched. When <span class="math inline">\(R\)</span> moves to a tuple with the <em>same key as before</em>, the cursor on <span class="math inline">\(S\)</span> must <strong>rewind</strong> to the first tuple of that key, so the new <span class="math inline">\(R\)</span> tuple also meets all of its partners.</li>
+</ol>
+<p>Here it is on the slides’ example, with the sorted inputs <span class="math inline">\(R\)</span> = 100, 200, 200, 300, 400, 500, 600, 700 and <span class="math inline">\(S\)</span> = 100, 100, 200, 400, 500:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Step</th>
+<th><span class="math inline">\(R\)</span> cursor</th>
+<th><span class="math inline">\(S\)</span> cursor</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>100</td>
+<td>100</td>
+<td>Match, emit. Advance <span class="math inline">\(S\)</span>.</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>100</td>
+<td>100 (second)</td>
+<td>Match, emit. Advance <span class="math inline">\(S\)</span>.</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>100</td>
+<td>200</td>
+<td><span class="math inline">\(R\)</span> &lt; <span class="math inline">\(S\)</span>: advance <span class="math inline">\(R\)</span>.</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>200</td>
+<td>200</td>
+<td>Match, emit. Advance <span class="math inline">\(S\)</span>. Last key = 200.</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>200</td>
+<td>400</td>
+<td><span class="math inline">\(R\)</span> &lt; <span class="math inline">\(S\)</span>: advance <span class="math inline">\(R\)</span>. The new <span class="math inline">\(R\)</span> key is 200 again, the last key, so <strong>rewind <span class="math inline">\(S\)</span></strong> to its first 200.</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>200 (second)</td>
+<td>200</td>
+<td>Match, emit. Advance <span class="math inline">\(S\)</span>.</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td>200 (second)</td>
+<td>400</td>
+<td><span class="math inline">\(R\)</span> &lt; <span class="math inline">\(S\)</span>: advance <span class="math inline">\(R\)</span>.</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>300</td>
+<td>400</td>
+<td><span class="math inline">\(R\)</span> &lt; <span class="math inline">\(S\)</span>: advance <span class="math inline">\(R\)</span>. No partner for 300.</td>
+</tr>
+<tr class="odd">
+<td>9</td>
+<td>400</td>
+<td>400</td>
+<td>Match, emit. Advance <span class="math inline">\(S\)</span>.</td>
+</tr>
+<tr class="even">
+<td>10</td>
+<td>400</td>
+<td>500</td>
+<td><span class="math inline">\(R\)</span> &lt; <span class="math inline">\(S\)</span>: advance <span class="math inline">\(R\)</span>.</td>
+</tr>
+<tr class="odd">
+<td>11</td>
+<td>500</td>
+<td>500</td>
+<td>Match, emit. <span class="math inline">\(S\)</span> is exhausted, so we are done.</td>
+</tr>
+</tbody>
+</table>
+<p>The rest of <span class="math inline">\(R\)</span> (600 and 700) is never even looked at.</p>
+<div id="fig-smj" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two sorted columns, R and S, with lines connecting matching keys. R 100 connects to both S 100s, R 200 twice to the single S 200 (the second one drawn dashed to show the rewind), R 400 and R 500 to their S counterparts. R 300, 600 and 700 are greyed out with no match.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-smj-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/sort-merge-join.svg" class="img-fluid figure-img" alt="Two sorted columns, R and S, with lines connecting matching keys. R 100 connects to both S 100s, R 200 twice to the single S 200 (the second one drawn dashed to show the rewind), R 400 and R 500 to their S counterparts. R 300, 600 and 700 are greyed out with no match.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-smj-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8: The output of the merge on the example. Every match is found in one forward sweep, apart from one short rewind of S.
+</figcaption>
+</figure>
+</div>
+<section id="why-is-this-better-what-about-the-backtracking" class="level4">
+<h4 class="anchored" data-anchor-id="why-is-this-better-what-about-the-backtracking">Why is this better? What about the backtracking?</h4>
+<p>It is fair to be suspicious of the rewind: if we keep jumping back, are we not just doing a nested loop again? No, for two reasons.</p>
+<p><strong>1. Sortedness lets you skip without looking.</strong> In a nested loop, when <span class="math inline">\(r\)</span> has no partner, the algorithm only finds that out after comparing <span class="math inline">\(r\)</span> against the <em>entire</em> inner table. In the sorted version, one comparison is enough: if <span class="math inline">\(s\)</span> is already larger than <span class="math inline">\(r\)</span>, then because <span class="math inline">\(S\)</span> is sorted, <em>everything after <span class="math inline">\(s\)</span> is larger too</em>, so <span class="math inline">\(r\)</span> cannot match anything and we move on. The cursors only ever walk forward through the data.</p>
+<p><strong>2. The rewind is tiny and is paid for by the output.</strong> We only go back over the <strong>group of tuples with an identical key</strong>, and every tuple in that group <em>does</em> match the new <span class="math inline">\(r\)</span>. So the rewound tuples are not wasted comparisons: each one produces an output row that has to be emitted anyway. The extra work is proportional to the size of the result, not to the size of the tables. In practice the pages being revisited were just read, so they are typically still in memory.</p>
+<p>Put together: when keys are unique or have only a few duplicates, each page of <span class="math inline">\(R\)</span> and <span class="math inline">\(S\)</span> is read <strong>once</strong>, and the merge costs</p>
+<p><span class="math display">\[
+\text{merge cost} = M + N
+\]</span></p>
+<p>The whole cost is the sort cost of both tables plus this:</p>
+<p><span class="math display">\[
+\text{cost} = \underbrace{2M \cdot \left(1 + \left\lceil \log_{B-1} \left\lceil \tfrac{M}{B} \right\rceil \right\rceil\right)}_{\text{sort } R} + \underbrace{2N \cdot \left(1 + \left\lceil \log_{B-1} \left\lceil \tfrac{N}{B} \right\rceil \right\rceil\right)}_{\text{sort } S} + (M + N)
+\]</span></p>
+<p>With <span class="math inline">\(B = 100\)</span> buffers both tables sort in two passes:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Step</th>
+<th>I/Os</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Sort <span class="math inline">\(R\)</span>: <span class="math inline">\(2 \cdot 1000 \cdot 2\)</span></td>
+<td>4000</td>
+</tr>
+<tr class="even">
+<td>Sort <span class="math inline">\(S\)</span>: <span class="math inline">\(2 \cdot 500 \cdot 2\)</span></td>
+<td>2000</td>
+</tr>
+<tr class="odd">
+<td>Merge: <span class="math inline">\(1000 + 500\)</span></td>
+<td>1500</td>
+</tr>
+<tr class="even">
+<td><strong>Total</strong></td>
+<td><strong>7500</strong> (about 0.75 s)</td>
+</tr>
+</tbody>
+</table>
+<p>You might notice that block nested loop with a similar buffer budget came out at about 6000 in the same example, so sort-merge is not magically faster here. The difference is how each one <strong>scales</strong>. Block nested loop cost grows like <span class="math inline">\(\frac{M}{B-2} \cdot N\)</span>, which is a <em>product</em> of the table sizes, so doubling both tables roughly quadruples it. Sort-merge cost grows like <span class="math inline">\((M + N)\)</span> times a few passes, which grows much more gently. The bigger the tables, the more the sort-merge approach wins. (This scaling comparison is my own summary of the formulas.)</p>
+<p><strong>The worst case</strong> is when every tuple in both tables has the same join key. Then every <span class="math inline">\(r\)</span> matches every <span class="math inline">\(s\)</span>, the rewind covers the whole of <span class="math inline">\(S\)</span> each time, and the merge costs <span class="math inline">\(M \cdot N\)</span> plus the sorting. The output itself has <span class="math inline">\(m \cdot n\)</span> rows in that case, so any algorithm would be slow.</p>
+<p><strong>When is sort-merge the right choice?</strong></p>
+<ul>
+<li>One or both tables are <strong>already sorted</strong> on the join key (for example, they are read through a B+Tree on that key, so the sort phase is free).</li>
+<li>The <strong>output must be sorted</strong> on the join key (for example, there is an <code>ORDER BY</code> on it), so the sort pays for two things at once.</li>
+</ul>
+</section>
+</section>
+<section id="hash-join" class="level3">
+<h3 class="anchored" data-anchor-id="hash-join">Hash join</h3>
+<p>Here is the key observation, the same one behind hash aggregation:</p>
+<blockquote class="blockquote">
+<p>If <span class="math inline">\(r \in R\)</span> and <span class="math inline">\(s \in S\)</span> satisfy the join condition, they have the <strong>same join key</strong>. So they hash to the <strong>same place</strong>. Therefore we only ever need to compare an <span class="math inline">\(r\)</span> with the <span class="math inline">\(s\)</span> tuples that landed in the same bucket.</p>
+</blockquote>
+<p>In other words, a hash join builds a throw-away <strong>index on the fly</strong> for one of the tables, and then uses it just like the index nested loop join does. No sorting, and no scanning of the inner table for each outer tuple.</p>
+<section id="simple-hash-join-everything-fits-in-memory" class="level4">
+<h4 class="anchored" data-anchor-id="simple-hash-join-everything-fits-in-memory">Simple hash join (everything fits in memory)</h4>
+<p><strong>Phase 1, build.</strong> Scan the outer table <span class="math inline">\(R\)</span> and insert every tuple into an in-memory hash table using a hash function <span class="math inline">\(h_1\)</span> on the join key. (Linear probing hash tables tend to work best in practice, but any hash table from the earlier posts works.)</p>
+<p><strong>Phase 2, probe.</strong> Scan the inner table <span class="math inline">\(S\)</span>. For each tuple, hash its key with <span class="math inline">\(h_1\)</span>, jump to that bucket and compare against the entries found there. Emit each real match.</p>
+<pre class="text"><code>for each tuple r in R:                 # build
+    insert r into hash table HT using h1(r.key)
+for each tuple s in S:                 # probe
+    for each r in HT[h1(s.key)]:
+        if r.key == s.key: emit (r, s)</code></pre>
+<div id="fig-shj" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Top: seven R tuples flow through h1 into a hash table with four buckets, e.g. bucket 1 holds 100 and 500. Bottom: S tuples 100, 900 and 200 are hashed with h1 and looked up. 100 and 200 match and are emitted, while 900 lands in bucket 1 but finds no equal key.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-shj-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/simple-hash-join.svg" class="img-fluid figure-img" alt="Top: seven R tuples flow through h1 into a hash table with four buckets, e.g. bucket 1 holds 100 and 500. Bottom: S tuples 100, 900 and 200 are hashed with h1 and looked up. 100 and 200 match and are emitted, while 900 lands in bucket 1 but finds no equal key.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-shj-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;9: Simple hash join. R is hashed into a table; S is streamed past it. Landing in a bucket is only a hint, so the keys are still compared.
+</figcaption>
+</figure>
+</div>
+<p>The <strong>build</strong> side is the one stored in memory, so the <em>smaller</em> table should be the build side (the outer table). The probe side is only streamed through, so it can be <strong>any size</strong>.</p>
+<p>The cost is the same as the best case for any join: each table is read once, <span class="math inline">\(M + N\)</span> I/Os, as long as the hash table fits in memory. Because there is one lookup per tuple instead of a scan, the CPU cost is also low.</p>
+<p><strong>Optimization: a probe filter (Bloom filter).</strong> While building the hash table, the DBMS can also fill a <strong>Bloom filter</strong>: a small bit array that can answer “is this key <em>possibly</em> in the table?”. It may give a false “maybe”, but never a false “no”. Before probing the real hash table, the probe side first asks the filter. If the answer is “no”, the tuple is thrown away immediately. The filter is much smaller than the table and fits in the CPU cache, so rejecting non-matching tuples becomes cheap. The slides call this <em>sideways information passing</em>, since information from the build side flows over to the probe side.</p>
+</section>
+</section>
+<section id="partitioned-hash-join-grace" class="level3">
+<h3 class="anchored" data-anchor-id="partitioned-hash-join-grace">Partitioned hash join (GRACE)</h3>
+<p>What if the hash table of <span class="math inline">\(R\)</span> <strong>does not fit in memory</strong>? If we just build it anyway, the buffer pool will swap its pages in and out at random, and every probe becomes a random I/O. That is a disaster, so we do not do that.</p>
+<p>Instead we use the same divide-and-conquer pattern as external hash aggregation. This algorithm is called <strong>partitioned hash join</strong>, or <strong>GRACE hash join</strong>, after the GRACE database machine built at the University of Tokyo in the 1980s.</p>
+<p><strong>Phase 1, partition.</strong> Hash <strong>both</strong> tables with the <strong>same</strong> function <span class="math inline">\(h_1\)</span> into <span class="math inline">\(k\)</span> partitions each, writing full partition buffers to disk. This gives partitions <span class="math inline">\(R_0, \dots, R_{k-1}\)</span> and <span class="math inline">\(S_0, \dots, S_{k-1}\)</span>.</p>
+<p><strong>Phase 2, probe.</strong> For each <span class="math inline">\(i\)</span>, load <span class="math inline">\(R_i\)</span> into memory, build a hash table on it (using a second function <span class="math inline">\(h_2\)</span>), then stream <span class="math inline">\(S_i\)</span> through it and emit the matches.</p>
+<div id="fig-grace" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Top: tables R and S pass through the same hash function h1 and are split into three pairs of partitions R0/S0, R1/S1 and R2/S2 on disk. Bottom: partition pair 0 is joined by building an in-memory hash table on R0 using h2 and probing it with S0, producing matching pairs.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-grace-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/grace-hash-join.svg" class="img-fluid figure-img" alt="Top: tables R and S pass through the same hash function h1 and are split into three pairs of partitions R0/S0, R1/S1 and R2/S2 on disk. Bottom: partition pair 0 is joined by building an in-memory hash table on R0 using h2 and probing it with S0, producing matching pairs.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-grace-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;10: GRACE hash join. Both tables are split by h1, then each pair of partitions is joined independently with an in-memory hash table.
+</figcaption>
+</figure>
+</div>
+<p>Why is it correct to join the partitions independently? Because of the observation from the beginning: matching tuples have equal keys, equal keys have equal hashes, and equal hashes mean the same partition number. A tuple in <span class="math inline">\(R_i\)</span> can only ever match a tuple in <span class="math inline">\(S_i\)</span>, never one in <span class="math inline">\(S_j\)</span> for <span class="math inline">\(j \ne i\)</span>. So we never miss a match, and we never need to compare across partitions.</p>
+<p><strong>Cost.</strong> Phase 1 reads and writes both tables, which is <span class="math inline">\(2(M + N)\)</span>. Phase 2 reads every partition back once, which is <span class="math inline">\(M + N\)</span>. In total:</p>
+<p><span class="math display">\[
+\text{cost} = 3(M + N)
+\]</span></p>
+<p>For the example: <span class="math inline">\(3 \cdot (1000 + 500) = 4500\)</span> I/Os, about <strong>0.45 seconds</strong>, the best of all the algorithms so far. (This assumes that every partition fits in memory, which brings us to the edge cases.)</p>
+</section>
+<section id="recursive-partitioning-and-edge-cases" class="level3">
+<h3 class="anchored" data-anchor-id="recursive-partitioning-and-edge-cases">Recursive partitioning and edge cases</h3>
+<p>What if some partition <span class="math inline">\(R_i\)</span> is <em>still</em> too big for memory after the first split? Split it again, using a <strong>different</strong> hash function, and repeat if necessary. The matching <span class="math inline">\(S\)</span> partition has to be split the same way so that the pairs stay aligned, and in the end the small sub-partition pairs are joined as before.</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    A["Partition R and S with h1 into k buckets"] --&gt; B{"Does R bucket i fit in memory?"}
+    B -- "yes" --&gt; C["Build a hash table on R bucket i with h2, probe with S bucket i"]
+    B -- "no" --&gt; D{"Is it big because of many different keys,&lt;br/&gt;or because of ONE very frequent key?"}
+    D -- "many keys" --&gt; E["Re-partition R bucket i and S bucket i with a new hash function"]
+    E --&gt; B
+    D -- "one key" --&gt; F["Block nested loop join just for that key"]
+</pre>
+</div>
+<p></p><figcaption> What the DBMS does when a partition is too big.</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>The second branch is there because re-partitioning has a blind spot: <strong>identical keys always hash to the same value</strong>, so no hash function can split a pile of tuples that all share one key. For that rare case the slides suggest falling back to a <strong>block nested loop join for that key only</strong>, which at least reads sequentially instead of jumping around.</p>
+<p>A few more observations about hash joins:</p>
+<ul>
+<li><strong>Only the build table (or its partitions) has to fit in memory.</strong> The probe table can be any size.</li>
+<li>If the probe-side table happens to fit entirely in memory but the build-side does not, you can simply swap roles: build on the table that fits, and scan the other one past it, with no partitioning at all.</li>
+<li>If the DBMS does not know the size of the build table in advance, it needs a hash table that can grow, or one with overflow pages.</li>
+</ul>
+<p>The partition fan-out also tells us when one level of partitioning is enough. With <span class="math inline">\(B\)</span> buffers we can write about <span class="math inline">\(B-1\)</span> partitions at once, each of size about <span class="math inline">\(M/(B-1)\)</span> pages, and each must fit in about <span class="math inline">\(B-2\)</span> buffers, so roughly <span class="math inline">\(M \lesssim B^2\)</span>. (This is my own estimate, not a figure from the slides.) Notice that this is the same square-law as the two-pass limit for external sorting.</p>
+</section>
+<section id="the-join-algorithms-side-by-side" class="level3">
+<h3 class="anchored" data-anchor-id="the-join-algorithms-side-by-side">The join algorithms side by side</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Algorithm</th>
+<th>I/O cost</th>
+<th>Example cost (0.1 ms/IO)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Naive nested loop</td>
+<td><span class="math inline">\(M + m \cdot N\)</span></td>
+<td>1.4 hours</td>
+</tr>
+<tr class="even">
+<td>Block nested loop</td>
+<td><span class="math inline">\(M + \lceil M/(B-2) \rceil \cdot N\)</span></td>
+<td>0.55 s</td>
+</tr>
+<tr class="odd">
+<td>Index nested loop</td>
+<td><span class="math inline">\(M + m \cdot C\)</span></td>
+<td>depends on the index</td>
+</tr>
+<tr class="even">
+<td>Sort-merge</td>
+<td>sort <span class="math inline">\(R\)</span> + sort <span class="math inline">\(S\)</span> + <span class="math inline">\((M + N)\)</span></td>
+<td>0.75 s</td>
+</tr>
+<tr class="odd">
+<td>Hash (partitioned)</td>
+<td><span class="math inline">\(3(M + N)\)</span></td>
+<td>0.45 s</td>
+</tr>
+</tbody>
+</table>
+<p>The conclusion of the lecture matches what we saw for aggregation: <strong>hashing is almost always better than sorting</strong> for executing operators. The exceptions are the same two as before: sorting is better on <strong>non-uniform (skewed) data</strong>, and when the <strong>result has to be sorted</strong>. A good DBMS implements both, and the optimizer picks.</p>
+</section>
+</section>
+<section id="cheat-sheet" class="level2">
+<h2 class="anchored" data-anchor-id="cheat-sheet">Cheat sheet</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Idea</th>
+<th>One-line summary</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Top-N heap</td>
+<td>One scan, keep a size-<span class="math inline">\(N\)</span> leaderboard; evict the worst when a better row arrives</td>
+</tr>
+<tr class="even">
+<td>External merge sort</td>
+<td>Pass 0 makes <span class="math inline">\(\lceil N/B \rceil\)</span> sorted runs; later passes merge <span class="math inline">\(B-1\)</span> runs at a time</td>
+</tr>
+<tr class="odd">
+<td>Cost</td>
+<td><span class="math inline">\(2N \cdot (1 + \lceil \log_{B-1} \lceil N/B \rceil \rceil)\)</span> page I/Os</td>
+</tr>
+<tr class="even">
+<td>Two-pass limit</td>
+<td><span class="math inline">\(N \le B(B-1)\)</span> pages</td>
+</tr>
+<tr class="odd">
+<td>Double buffering</td>
+<td>Prefetch the next chunk during the merge; costs half the buffers</td>
+</tr>
+<tr class="even">
+<td>Comparison tricks</td>
+<td>Specialize code by type, compare short prefixes first, normalize keys to bytes</td>
+</tr>
+<tr class="odd">
+<td>Index for sorting</td>
+<td>Clustered: always good. Unclustered: only for small Top-N</td>
+</tr>
+<tr class="even">
+<td>Sort aggregation</td>
+<td>Sorted input means a group ends when the key changes; keep running totals</td>
+</tr>
+<tr class="odd">
+<td>Hash aggregation</td>
+<td>Partition with <span class="math inline">\(h_1\)</span> to disk, then aggregate each partition in memory with <span class="math inline">\(h_2\)</span></td>
+</tr>
+<tr class="even">
+<td>Naive nested loop join</td>
+<td>Two loops over tuples; scans <span class="math inline">\(S\)</span> once per tuple of <span class="math inline">\(R\)</span>: <span class="math inline">\(M + m \cdot N\)</span></td>
+</tr>
+<tr class="odd">
+<td>Block nested loop join</td>
+<td>Load a block of <span class="math inline">\(B-2\)</span> outer pages, scan <span class="math inline">\(S\)</span> once per block: <span class="math inline">\(M + \lceil M/(B-2) \rceil \cdot N\)</span></td>
+</tr>
+<tr class="even">
+<td>Index nested loop join</td>
+<td>One index probe on the inner table per outer tuple: <span class="math inline">\(M + m \cdot C\)</span></td>
+</tr>
+<tr class="odd">
+<td>Sort-merge join</td>
+<td>Sort both, then one forward sweep with a short rewind over equal-key groups</td>
+</tr>
+<tr class="even">
+<td>Hash join</td>
+<td>Build a hash table on the smaller table, probe it with the larger one</td>
+</tr>
+<tr class="odd">
+<td>Partitioned (GRACE) hash join</td>
+<td>Split both tables with <span class="math inline">\(h_1\)</span>, join each pair in memory with <span class="math inline">\(h_2\)</span>: <span class="math inline">\(3(M + N)\)</span></td>
+</tr>
+<tr class="even">
+<td>Recursive partitioning</td>
+<td>Re-split oversized partitions with a new hash function; one hot key falls back to block nested loop</td>
+</tr>
+</tbody>
+</table>
+<p>Both of the big ideas in this post, <strong>sorting</strong> and <strong>hashing</strong>, are about bringing equal keys together. Aggregation needs that for rows of one table, and a join needs it for rows of two.</p>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li><strong>Slides:</strong> <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/11-sorting.pdf">Sorting and Aggregations</a> and <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/12-joins.pdf">Joins</a>, CMU 15-445/645 Fall 2025, Prof.&nbsp;Andy Pavlo.</li>
+<li><strong>Course website:</strong> <a href="https://15445.courses.cs.cmu.edu/">15445.courses.cs.cmu.edu</a></li>
+<li>Previous posts on this blog: <a href="../../posts/buffer-pool/index.html">the buffer pool</a> and <a href="../../posts/indexes/index.html">database indexes</a>.</li>
+</ul>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/bahbah94\.github\.io\/db-blog\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+          if (!link.classList.contains('no-external-icon')) {
+          }
+        }
+      }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
+          if (lineIds.length > 0) {
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            placeBand(gutterDiv, el, lastEl);
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Notes based on CMU 15-445/645 and other database resources.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

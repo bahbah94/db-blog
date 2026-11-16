@@ -2,6 +2,7 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/sorting-aggregations-joins/index.html",
       "/posts/indexes/index.html",
       "/posts/buffer-pool/index.html"
     ]

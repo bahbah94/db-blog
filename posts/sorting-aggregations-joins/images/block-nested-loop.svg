@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 330" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#777"/></marker>
+  </defs>
+
+  <!-- Table R -->
+  <text x="20" y="22" font-weight="bold" fill="#555">Table R (outer): 6 pages, read in blocks of B-2 = 3 pages</text>
+  <rect x="32" y="30" width="236" height="46" rx="6" fill="#fff3e6" stroke="#c2410c" stroke-width="2"/>
+  <rect x="272" y="30" width="236" height="46" rx="6" fill="#f5f5f5" stroke="#999" stroke-width="2" stroke-dasharray="6 4"/>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="40" y="36" width="60" height="34"/><rect x="120" y="36" width="60" height="34"/><rect x="200" y="36" width="60" height="34"/>
+    <rect x="280" y="36" width="60" height="34"/><rect x="360" y="36" width="60" height="34"/><rect x="440" y="36" width="60" height="34"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="70" y="58">R1</text><text x="150" y="58">R2</text><text x="230" y="58">R3</text>
+    <text x="310" y="58">R4</text><text x="390" y="58">R5</text><text x="470" y="58">R6</text>
+  </g>
+  <text x="150" y="94" text-anchor="middle" font-size="13" fill="#c2410c" font-weight="bold">block 1: loaded now</text>
+  <text x="390" y="94" text-anchor="middle" font-size="13" fill="#777">block 2: loaded after block 1 is done</text>
+
+  <line x1="150" y1="100" x2="150" y2="128" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- Buffer pool -->
+  <rect x="30" y="132" width="440" height="56" rx="6" fill="#fafafa" stroke="#bbb" stroke-width="1.5"/>
+  <text x="40" y="148" font-size="12" fill="#777" font-weight="bold">Buffer pool, B = 5</text>
+  <g stroke-width="2">
+    <rect x="40" y="154" width="60" height="28" fill="#ffd9b3" stroke="#c2410c"/><rect x="110" y="154" width="60" height="28" fill="#ffd9b3" stroke="#c2410c"/><rect x="180" y="154" width="60" height="28" fill="#ffd9b3" stroke="#c2410c"/>
+    <rect x="270" y="154" width="70" height="28" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="370" y="154" width="70" height="28" fill="#f1e6fa" stroke="#7b3fb5"/>
+  </g>
+  <g text-anchor="middle" font-size="13" font-weight="bold">
+    <text x="70" y="173">R1</text><text x="140" y="173">R2</text><text x="210" y="173">R3</text>
+    <text x="305" y="173">S page</text><text x="405" y="173">output</text>
+  </g>
+
+  <g font-size="13" fill="#444">
+    <text x="520" y="148">B = 5 buffers are used as:</text>
+    <text x="520" y="168">3 hold the current block of R</text>
+    <text x="520" y="188">1 holds the current page of S</text>
+    <text x="520" y="208">1 collects the output</text>
+  </g>
+
+  <!-- Table S -->
+  <text x="20" y="232" font-weight="bold" fill="#555">Table S (inner): 4 pages, scanned in full once for every block of R</text>
+  <g stroke="#2f8f4e" stroke-width="2" fill="#e3f6e3">
+    <rect x="40" y="242" width="60" height="34"/><rect x="120" y="242" width="60" height="34"/><rect x="200" y="242" width="60" height="34"/><rect x="280" y="242" width="60" height="34"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="70" y="264">S1</text><text x="150" y="264">S2</text><text x="230" y="264">S3</text><text x="310" y="264">S4</text>
+  </g>
+  <line x1="305" y1="240" x2="305" y2="190" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <text x="372" y="262" font-size="13" fill="#444">one S page at a time is compared</text>
+  <text x="372" y="280" font-size="13" fill="#444">against all tuples of the 3 R pages</text>
+
+  <text x="20" y="316" font-size="14" font-weight="bold">Reads = M + ceil(M / (B-2)) x N = 6 + 2 x 4 = 14 pages</text>
+</svg>
