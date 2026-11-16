@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 450" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <text x="20" y="24" font-weight="bold">ORDER BY x ASC, keep the best 4 (WITH TIES)</text>
+  <text x="20" y="46" font-size="13" fill="#555">Input stream (read page by page): 3  4  6  2  9  1  4  4</text>
+  <text x="120" y="76" font-size="12" fill="#555">heap of the best values so far (drawn sorted)</text>
+  <text x="380" y="76" font-size="12" fill="#555">what happened</text>
+
+  <!-- row 0 -->
+  <text x="20" y="107" font-weight="bold">read 3</text>
+  <rect x="120" y="88" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="138" y="107" text-anchor="middle" font-weight="bold">3</text>
+  <text x="380" y="107" font-size="13">insert (heap not full yet)</text>
+
+  <!-- row 1 -->
+  <text x="20" y="147" font-weight="bold">read 4</text>
+  <rect x="120" y="128" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="138" y="147" text-anchor="middle">3</text>
+  <rect x="160" y="128" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="178" y="147" text-anchor="middle" font-weight="bold">4</text>
+  <text x="380" y="147" font-size="13">insert</text>
+
+  <!-- row 2 -->
+  <text x="20" y="187" font-weight="bold">read 6</text>
+  <rect x="120" y="168" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="138" y="187" text-anchor="middle">3</text>
+  <rect x="160" y="168" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="178" y="187" text-anchor="middle">4</text>
+  <rect x="200" y="168" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="218" y="187" text-anchor="middle" font-weight="bold">6</text>
+  <text x="380" y="187" font-size="13">insert</text>
+
+  <!-- row 3 -->
+  <text x="20" y="227" font-weight="bold">read 2</text>
+  <rect x="120" y="208" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="138" y="227" text-anchor="middle" font-weight="bold">2</text>
+  <rect x="160" y="208" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="178" y="227" text-anchor="middle">3</text>
+  <rect x="200" y="208" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="218" y="227" text-anchor="middle">4</text>
+  <rect x="240" y="208" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="258" y="227" text-anchor="middle">6</text>
+  <text x="380" y="227" font-size="13">insert; the heap now holds N = 4 values</text>
+
+  <!-- row 4 -->
+  <text x="20" y="267" font-weight="bold">read 9</text>
+  <rect x="120" y="248" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="138" y="267" text-anchor="middle">2</text>
+  <rect x="160" y="248" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="178" y="267" text-anchor="middle">3</text>
+  <rect x="200" y="248" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="218" y="267" text-anchor="middle">4</text>
+  <rect x="240" y="248" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="258" y="267" text-anchor="middle">6</text>
+  <rect x="280" y="248" width="36" height="28" fill="#ffe9e9" stroke="#c0392b" stroke-width="2" stroke-dasharray="4 3"/><text x="298" y="267" text-anchor="middle" fill="#c0392b" font-weight="bold">9</text>
+  <text x="380" y="267" font-size="13" fill="#c0392b">9 is worse than the worst kept value (6): skip</text>
+
+  <!-- row 5 -->
+  <text x="20" y="307" font-weight="bold">read 1</text>
+  <rect x="120" y="288" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="138" y="307" text-anchor="middle" font-weight="bold">1</text>
+  <rect x="160" y="288" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="178" y="307" text-anchor="middle">2</text>
+  <rect x="200" y="288" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="218" y="307" text-anchor="middle">3</text>
+  <rect x="240" y="288" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="258" y="307" text-anchor="middle">4</text>
+  <rect x="280" y="288" width="36" height="28" fill="#ffe9e9" stroke="#c0392b" stroke-width="2" stroke-dasharray="4 3"/><text x="298" y="307" text-anchor="middle" fill="#c0392b" font-weight="bold">6</text>
+  <text x="380" y="307" font-size="13" fill="#c0392b">1 beats 6: insert 1 and evict 6</text>
+
+  <!-- row 6 -->
+  <text x="20" y="347" font-weight="bold">read 4</text>
+  <rect x="120" y="328" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="138" y="347" text-anchor="middle">1</text>
+  <rect x="160" y="328" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="178" y="347" text-anchor="middle">2</text>
+  <rect x="200" y="328" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="218" y="347" text-anchor="middle">3</text>
+  <rect x="240" y="328" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="258" y="347" text-anchor="middle">4</text>
+  <rect x="280" y="328" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="298" y="347" text-anchor="middle" font-weight="bold">4</text>
+  <text x="380" y="347" font-size="13">ties with the worst kept value (4): keep it (WITH TIES)</text>
+
+  <!-- row 7 -->
+  <text x="20" y="387" font-weight="bold">read 4</text>
+  <rect x="120" y="368" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="138" y="387" text-anchor="middle">1</text>
+  <rect x="160" y="368" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="178" y="387" text-anchor="middle">2</text>
+  <rect x="200" y="368" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="218" y="387" text-anchor="middle">3</text>
+  <rect x="240" y="368" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="258" y="387" text-anchor="middle">4</text>
+  <rect x="280" y="368" width="36" height="28" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/><text x="298" y="387" text-anchor="middle">4</text>
+  <rect x="320" y="368" width="36" height="28" fill="#ffd9b3" stroke="#c2410c" stroke-width="2"/><text x="338" y="387" text-anchor="middle" font-weight="bold">4</text>
+  <text x="380" y="387" font-size="13">ties again: keep it</text>
+
+  <line x1="20" y1="408" x2="740" y2="408" stroke="#ccc"/>
+  <text x="20" y="432" font-weight="bold" fill="#2f8f4e">Result: 1 2 3 4 4 4. One pass over the data, memory for about N values.</text>
+</svg>

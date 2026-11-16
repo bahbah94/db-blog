@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 460" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#777"/></marker>
+  </defs>
+
+  <!-- PHASE 1 -->
+  <text x="20" y="20" font-weight="bold" fill="#555">PHASE 1: PARTITION. Hash both tables with the same h1 and spill the pieces to disk.</text>
+
+  <rect x="20" y="76" width="130" height="68" rx="6" fill="none" stroke="#bbb" stroke-dasharray="6 4" stroke-width="1.5"/>
+  <rect x="30" y="84" width="110" height="24" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <rect x="30" y="112" width="110" height="24" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="85" y="101" text-anchor="middle" font-weight="bold">R</text>
+  <text x="85" y="129" text-anchor="middle" font-weight="bold">S</text>
+
+  <line x1="152" y1="110" x2="190" y2="110" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="192" y="95" width="60" height="30" rx="6" fill="#fffbe6" stroke="#b8860b" stroke-width="2"/>
+  <text x="222" y="115" text-anchor="middle" font-weight="bold">h1</text>
+  <g stroke="#777" stroke-width="2" marker-end="url(#a)">
+    <line x1="254" y1="104" x2="326" y2="60"/><line x1="254" y1="110" x2="326" y2="124"/><line x1="254" y1="118" x2="326" y2="188"/>
+  </g>
+
+  <g stroke-width="2" fill="#fafafa" stroke="#999">
+    <rect x="330" y="30" width="260" height="56" rx="4"/><rect x="330" y="94" width="260" height="56" rx="4"/><rect x="330" y="158" width="260" height="56" rx="4"/>
+  </g>
+  <g font-size="11" font-weight="bold" fill="#777">
+    <text x="338" y="44">partition 0 (on disk)</text><text x="338" y="108">partition 1 (on disk)</text><text x="338" y="172">partition 2 (on disk)</text>
+  </g>
+  <g stroke-width="2">
+    <rect x="344" y="50" width="106" height="28" fill="#e6f0ff" stroke="#4a78c2"/><rect x="466" y="50" width="106" height="28" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="344" y="114" width="106" height="28" fill="#e6f0ff" stroke="#4a78c2"/><rect x="466" y="114" width="106" height="28" fill="#e3f6e3" stroke="#2f8f4e"/>
+    <rect x="344" y="178" width="106" height="28" fill="#e6f0ff" stroke="#4a78c2"/><rect x="466" y="178" width="106" height="28" fill="#e3f6e3" stroke="#2f8f4e"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold" font-size="13">
+    <text x="397" y="69">R0</text><text x="519" y="69">S0</text>
+    <text x="397" y="133">R1</text><text x="519" y="133">S1</text>
+    <text x="397" y="197">R2</text><text x="519" y="197">S2</text>
+  </g>
+  <g font-size="13" fill="#444">
+    <text x="610" y="110">A tuple with key k goes to</text>
+    <text x="610" y="128">partition h1(k) in either table,</text>
+    <text x="610" y="146">so equal keys from R and S</text>
+    <text x="610" y="164">always end up in the same</text>
+    <text x="610" y="182">numbered partition.</text>
+  </g>
+
+  <line x1="20" y1="238" x2="800" y2="238" stroke="#ccc" stroke-dasharray="6 6"/>
+
+  <!-- PHASE 2 -->
+  <text x="20" y="262" font-weight="bold" fill="#555">PHASE 2: PROBE. Take one pair (Ri, Si) at a time and do an ordinary in-memory hash join.</text>
+
+  <rect x="40" y="294" width="110" height="32" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="95" y="315" text-anchor="middle" font-weight="bold" font-size="13">R0 (build)</text>
+  <rect x="40" y="374" width="110" height="32" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="95" y="395" text-anchor="middle" font-weight="bold" font-size="13">S0 (probe)</text>
+
+  <line x1="152" y1="310" x2="248" y2="310" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="250" y="288" width="220" height="70" rx="6" fill="#f3fbf3" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="360" y="312" text-anchor="middle" font-weight="bold" font-size="13">in-memory hash table</text>
+  <text x="360" y="332" text-anchor="middle" font-size="12">built on R0 with h2</text>
+  <text x="360" y="348" text-anchor="middle" font-size="12" fill="#555">(h2 differs from h1)</text>
+
+  <path d="M152,390 L360,390 L360,360" fill="none" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <text x="168" y="383" font-size="12" fill="#555">probe with h2</text>
+
+  <line x1="472" y1="323" x2="548" y2="323" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="550" y="298" width="240" height="50" rx="6" fill="#fff3e6" stroke="#c2410c" stroke-width="2"/>
+  <text x="670" y="327" text-anchor="middle" font-weight="bold" font-size="13">matching pairs are emitted</text>
+
+  <text x="20" y="440" font-size="13" fill="#444">Then throw the table away and repeat for (R1, S1), (R2, S2), ... Only one Ri has to fit in memory at a time.</text>
+</svg>

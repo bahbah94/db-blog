@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#777"/></marker>
+  </defs>
+
+  <!-- PHASE 1 -->
+  <text x="20" y="22" font-weight="bold" fill="#555">PHASE 1: PARTITION. Stream the table once and spill tuples into partitions on disk.</text>
+
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="193" y="34" width="48" height="32"/><rect x="247" y="34" width="48" height="32"/>
+    <rect x="301" y="34" width="48" height="32"/><rect x="355" y="34" width="48" height="32"/>
+    <rect x="409" y="34" width="48" height="32"/><rect x="463" y="34" width="48" height="32"/>
+    <rect x="517" y="34" width="48" height="32"/><rect x="571" y="34" width="48" height="32"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="217" y="55">155</text><text x="271" y="55">162</text><text x="325" y="55">161</text><text x="379" y="55">155</text>
+    <text x="433" y="55">163</text><text x="487" y="55">162</text><text x="541" y="55">155</text><text x="595" y="55">161</text>
+  </g>
+  <text x="635" y="55" font-size="12" fill="#555">group keys, page by page</text>
+
+  <line x1="406" y1="68" x2="406" y2="90" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="321" y="92" width="170" height="30" rx="6" fill="#fffbe6" stroke="#b8860b" stroke-width="2"/>
+  <text x="406" y="112" text-anchor="middle" font-size="13" font-weight="bold">h1(key) = key mod 3</text>
+  <g stroke="#777" stroke-width="2" marker-end="url(#a)">
+    <line x1="380" y1="124" x2="165" y2="156"/><line x1="406" y1="124" x2="406" y2="156"/><line x1="432" y1="124" x2="645" y2="156"/>
+  </g>
+
+  <!-- partitions -->
+  <g stroke="#2f8f4e" stroke-width="2" fill="#f3fbf3">
+    <rect x="40" y="160" width="220" height="56" rx="4"/><rect x="296" y="160" width="220" height="56" rx="4"/><rect x="552" y="160" width="220" height="56" rx="4"/>
+  </g>
+  <g font-size="12" font-weight="bold" fill="#2f8f4e">
+    <text x="48" y="175">P0 (on disk)</text><text x="304" y="175">P1 (on disk)</text><text x="560" y="175">P2 (on disk)</text>
+  </g>
+  <g stroke="#2f8f4e" stroke-width="1.5" fill="#e3f6e3">
+    <rect x="50" y="182" width="36" height="26"/><rect x="90" y="182" width="36" height="26"/>
+    <rect x="306" y="182" width="36" height="26"/>
+    <rect x="562" y="182" width="36" height="26"/><rect x="602" y="182" width="36" height="26"/><rect x="642" y="182" width="36" height="26"/><rect x="682" y="182" width="36" height="26"/><rect x="722" y="182" width="36" height="26"/>
+  </g>
+  <g text-anchor="middle" font-size="12">
+    <text x="68" y="200">162</text><text x="108" y="200">162</text>
+    <text x="324" y="200">163</text>
+    <text x="580" y="200">155</text><text x="620" y="200">161</text><text x="660" y="200">155</text><text x="700" y="200">155</text><text x="740" y="200">161</text>
+  </g>
+  <text x="20" y="240" font-size="13" fill="#444">Equal keys always land in the same partition. Different keys can share one (155 and 161 both went to P2).</text>
+
+  <line x1="20" y1="254" x2="800" y2="254" stroke="#ccc" stroke-dasharray="6 6"/>
+
+  <!-- PHASE 2 -->
+  <text x="20" y="278" font-weight="bold" fill="#555">PHASE 2: REHASH. Load one partition at a time and aggregate it in memory.</text>
+
+  <text x="40" y="318" font-size="12" font-weight="bold" fill="#2f8f4e">P2, read back</text>
+  <g stroke="#2f8f4e" stroke-width="2" fill="#f3fbf3"><rect x="40" y="324" width="220" height="56" rx="4"/></g>
+  <g stroke="#2f8f4e" stroke-width="1.5" fill="#e3f6e3">
+    <rect x="50" y="338" width="36" height="26"/><rect x="90" y="338" width="36" height="26"/><rect x="130" y="338" width="36" height="26"/><rect x="170" y="338" width="36" height="26"/><rect x="210" y="338" width="36" height="26"/>
+  </g>
+  <g text-anchor="middle" font-size="12">
+    <text x="68" y="356">155</text><text x="108" y="356">161</text><text x="148" y="356">155</text><text x="188" y="356">155</text><text x="228" y="356">161</text>
+  </g>
+  <line x1="264" y1="352" x2="334" y2="352" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <text x="299" y="344" text-anchor="middle" font-size="13" font-weight="bold" fill="#b8860b">h2</text>
+
+  <text x="340" y="304" font-size="12" font-weight="bold" fill="#555">hash table on h2: key -> running COUNT</text>
+  <g stroke="#b8860b" stroke-width="2" fill="#fffbe6">
+    <rect x="360" y="312" width="190" height="28"/><rect x="360" y="340" width="190" height="28"/>
+    <rect x="360" y="368" width="190" height="28"/><rect x="360" y="396" width="190" height="28"/>
+  </g>
+  <g font-size="12" fill="#888"><text x="344" y="331">0</text><text x="344" y="359">1</text><text x="344" y="387">2</text><text x="344" y="415">3</text></g>
+  <g font-size="14" font-weight="bold" text-anchor="middle">
+    <text x="455" y="360" fill="#c2410c">155 -> 3</text>
+    <text x="455" y="416" fill="#c2410c">161 -> 2</text>
+  </g>
+
+  <line x1="556" y1="368" x2="618" y2="368" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="622" y="326" width="190" height="86" rx="8" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <g text-anchor="middle" font-size="13">
+    <text x="717" y="350" font-weight="bold">emit (155, 3), (161, 2)</text>
+    <text x="717" y="372">then throw the table away</text>
+    <text x="717" y="392">and load the next partition</text>
+  </g>
+
+  <text x="20" y="460" font-size="13" fill="#444">P0 would give (162, 2) and P1 gives (163, 1). A key can never show up in another partition,</text>
+  <text x="20" y="480" font-size="13" fill="#444">so a group is finished the moment its partition has been consumed.</text>
+</svg>

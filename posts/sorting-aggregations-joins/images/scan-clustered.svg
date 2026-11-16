@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f8f4e"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker>
+  </defs>
+
+  <!-- CLUSTERED -->
+  <text x="20" y="22" font-weight="bold" fill="#2f8f4e">Clustered: rows are stored in key order</text>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="40" y="36" width="80" height="30"/><rect x="130" y="36" width="80" height="30"/>
+    <rect x="220" y="36" width="80" height="30"/><rect x="310" y="36" width="80" height="30"/>
+    <rect x="400" y="36" width="80" height="30"/><rect x="490" y="36" width="80" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="80" y="57">10</text><text x="170" y="57">20</text><text x="260" y="57">30</text>
+    <text x="350" y="57">40</text><text x="440" y="57">50</text><text x="530" y="57">60</text>
+  </g>
+  <text x="590" y="56" font-size="12" fill="#555">leaf entries, in key order</text>
+  <g stroke="#2f8f4e" stroke-width="2" marker-end="url(#g)">
+    <line x1="80" y1="68" x2="100" y2="128"/><line x1="170" y1="68" x2="180" y2="128"/>
+    <line x1="260" y1="68" x2="300" y2="128"/><line x1="350" y1="68" x2="380" y2="128"/>
+    <line x1="440" y1="68" x2="520" y2="128"/><line x1="530" y1="68" x2="600" y2="128"/>
+  </g>
+  <g stroke="#555" stroke-width="2" fill="#fafafa">
+    <rect x="40" y="130" width="200" height="40"/><rect x="260" y="130" width="200" height="40"/><rect x="480" y="130" width="200" height="40"/>
+  </g>
+  <g text-anchor="middle" font-size="13">
+    <text x="140" y="155">page 101: 10, 20</text><text x="360" y="155">page 102: 30, 40</text><text x="580" y="155">page 103: 50, 60</text>
+  </g>
+  <text x="20" y="196" font-size="13" fill="#2f8f4e" font-weight="bold">Pointers march forward through the pages: every page is read once, sequentially, and nothing needs sorting.</text>
+
+  <line x1="20" y1="212" x2="740" y2="212" stroke="#ccc" stroke-dasharray="6 6"/>
+
+  <!-- UNCLUSTERED -->
+  <text x="20" y="236" font-weight="bold" fill="#c0392b">Unclustered: rows are stored in arbitrary order</text>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="40" y="250" width="80" height="30"/><rect x="130" y="250" width="80" height="30"/>
+    <rect x="220" y="250" width="80" height="30"/><rect x="310" y="250" width="80" height="30"/>
+    <rect x="400" y="250" width="80" height="30"/><rect x="490" y="250" width="80" height="30"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="80" y="271">10</text><text x="170" y="271">20</text><text x="260" y="271">30</text>
+    <text x="350" y="271">40</text><text x="440" y="271">50</text><text x="530" y="271">60</text>
+  </g>
+  <g stroke="#c0392b" stroke-width="1.8" marker-end="url(#r)">
+    <line x1="80" y1="282" x2="300" y2="342"/>
+    <line x1="170" y1="282" x2="520" y2="342"/>
+    <line x1="260" y1="282" x2="120" y2="342"/>
+    <line x1="350" y1="282" x2="400" y2="342"/>
+    <line x1="440" y1="282" x2="620" y2="342"/>
+    <line x1="530" y1="282" x2="200" y2="342"/>
+  </g>
+  <g stroke="#555" stroke-width="2" fill="#fafafa">
+    <rect x="40" y="344" width="200" height="40"/><rect x="260" y="344" width="200" height="40"/><rect x="480" y="344" width="200" height="40"/>
+  </g>
+  <g text-anchor="middle" font-size="13">
+    <text x="140" y="369">page 101: 30, 60</text><text x="360" y="369">page 102: 10, 40</text><text x="580" y="369">page 103: 20, 50</text>
+  </g>
+  <text x="20" y="410" font-size="13" fill="#c0392b" font-weight="bold">Reading in key order bounces 102, 103, 101, 102, 103, 101: up to one random I/O per row.</text>
+</svg>
