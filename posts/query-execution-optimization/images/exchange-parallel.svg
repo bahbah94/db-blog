@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 390" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#777"/></marker>
+  </defs>
+
+  <!-- build workers -->
+  <g stroke="#c2410c" stroke-width="2" fill="#ffd9b3">
+    <rect x="60" y="24" width="150" height="46" rx="6"/><rect x="230" y="24" width="150" height="46" rx="6"/><rect x="400" y="24" width="150" height="46" rx="6"/>
+  </g>
+  <g text-anchor="middle" font-size="13" font-weight="bold">
+    <text x="135" y="44">Worker 1</text><text x="135" y="61" font-weight="normal" font-size="12">scan A1, build</text>
+    <text x="305" y="44">Worker 2</text><text x="305" y="61" font-weight="normal" font-size="12">scan A2, build</text>
+    <text x="475" y="44">Worker 3</text><text x="475" y="61" font-weight="normal" font-size="12">scan A3, build</text>
+  </g>
+  <g stroke="#777" stroke-width="2" marker-end="url(#a)">
+    <line x1="135" y1="72" x2="135" y2="106"/><line x1="305" y1="72" x2="305" y2="106"/><line x1="475" y1="72" x2="475" y2="106"/>
+  </g>
+
+  <!-- shared hash table -->
+  <rect x="60" y="110" width="490" height="46" rx="6" fill="#e3f6e3" stroke="#2f8f4e" stroke-width="2"/>
+  <text x="305" y="138" text-anchor="middle" font-weight="bold">Hash table on A (shared by all workers)</text>
+  <g stroke="#777" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a)">
+    <line x1="135" y1="158" x2="135" y2="192"/><line x1="305" y1="158" x2="305" y2="192"/><line x1="475" y1="158" x2="475" y2="192"/>
+  </g>
+
+  <!-- probe workers -->
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="60" y="196" width="150" height="46" rx="6"/><rect x="230" y="196" width="150" height="46" rx="6"/><rect x="400" y="196" width="150" height="46" rx="6"/>
+  </g>
+  <g text-anchor="middle" font-size="13" font-weight="bold">
+    <text x="135" y="216">Worker 1</text><text x="135" y="233" font-weight="normal" font-size="12">scan B1, probe</text>
+    <text x="305" y="216">Worker 2</text><text x="305" y="233" font-weight="normal" font-size="12">scan B2, probe</text>
+    <text x="475" y="216">Worker 3</text><text x="475" y="233" font-weight="normal" font-size="12">scan B3, probe</text>
+  </g>
+  <g stroke="#777" stroke-width="2" marker-end="url(#a)">
+    <line x1="135" y1="244" x2="135" y2="278"/><line x1="305" y1="244" x2="305" y2="278"/><line x1="475" y1="244" x2="475" y2="278"/>
+  </g>
+
+  <!-- exchange -->
+  <rect x="60" y="282" width="490" height="44" rx="6" fill="#fff6d6" stroke="#b8860b" stroke-width="2"/>
+  <text x="305" y="309" text-anchor="middle" font-weight="bold">Exchange (gather): merge the three output streams</text>
+  <line x1="305" y1="328" x2="305" y2="346" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="215" y="348" width="180" height="32" rx="6" fill="#f1e6fa" stroke="#7b3fb5" stroke-width="2"/>
+  <text x="305" y="369" text-anchor="middle" font-weight="bold" font-size="13">One result stream</text>
+
+  <!-- notes -->
+  <g font-size="13" fill="#333">
+    <text x="590" y="44" font-weight="bold" fill="#c2410c">Build</text>
+    <text x="590" y="62">Each worker takes a slice of A</text>
+    <text x="590" y="80">and inserts it into the table.</text>
+
+    <text x="590" y="176" font-weight="bold" fill="#4a78c2">Probe</text>
+    <text x="590" y="194">Each worker takes a slice of B</text>
+    <text x="590" y="212">and looks its tuples up.</text>
+
+    <text x="590" y="302" font-weight="bold" fill="#b8860b">Exchange</text>
+    <text x="590" y="320">Combines the workers' outputs</text>
+    <text x="590" y="338">for the parent operator.</text>
+  </g>
+</svg>

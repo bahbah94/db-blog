@@ -2,6 +2,7 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/query-execution-optimization/index.html",
       "/posts/sorting-aggregations-joins/index.html",
       "/posts/indexes/index.html",
       "/posts/buffer-pool/index.html"

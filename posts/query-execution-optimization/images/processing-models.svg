@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#777"/></marker>
+  </defs>
+
+  <!-- panel frames -->
+  <g fill="none" stroke="#ddd" stroke-width="1.5">
+    <rect x="10" y="6" width="250" height="286" rx="8"/><rect x="280" y="6" width="250" height="286" rx="8"/><rect x="550" y="6" width="250" height="286" rx="8"/>
+  </g>
+  <g text-anchor="middle" font-weight="bold">
+    <text x="135" y="30">Iterator (Volcano)</text><text x="405" y="30">Materialization</text><text x="675" y="30">Vectorized (batch)</text>
+  </g>
+
+  <!-- Panel 1: iterator -->
+  <rect x="70" y="50" width="130" height="36" rx="6" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="135" y="73" text-anchor="middle" font-weight="bold" font-size="13">Parent operator</text>
+  <rect x="70" y="200" width="130" height="36" rx="6" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="135" y="223" text-anchor="middle" font-weight="bold" font-size="13">Child operator</text>
+  <line x1="105" y1="88" x2="105" y2="198" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <text x="98" y="148" text-anchor="end" font-size="12" fill="#555">Next()</text>
+  <line x1="165" y1="198" x2="165" y2="88" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="173" y="136" width="22" height="14" fill="#ffd9b3" stroke="#c2410c" stroke-width="1.5"/>
+  <text x="202" y="147" font-size="12" fill="#444">1 tuple</text>
+  <text x="135" y="264" text-anchor="middle" font-size="12" fill="#444">One call per tuple: simple and</text>
+  <text x="135" y="280" text-anchor="middle" font-size="12" fill="#444">pipelined, but many calls</text>
+
+  <!-- Panel 2: materialization -->
+  <rect x="340" y="50" width="130" height="36" rx="6" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="405" y="73" text-anchor="middle" font-weight="bold" font-size="13">Parent operator</text>
+  <rect x="340" y="200" width="130" height="36" rx="6" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="405" y="223" text-anchor="middle" font-weight="bold" font-size="13">Child operator</text>
+  <line x1="375" y1="88" x2="375" y2="198" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <text x="368" y="148" text-anchor="end" font-size="12" fill="#555">Output()</text>
+  <line x1="435" y1="198" x2="435" y2="88" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <g fill="#ffd9b3" stroke="#c2410c" stroke-width="1.5">
+    <rect x="443" y="100" width="40" height="14"/><rect x="443" y="117" width="40" height="14"/><rect x="443" y="134" width="40" height="14"/><rect x="443" y="151" width="40" height="14"/><rect x="443" y="168" width="40" height="14"/>
+  </g>
+  <text x="488" y="146" font-size="12" fill="#444">all rows</text>
+  <text x="405" y="264" text-anchor="middle" font-size="12" fill="#444">One call, the whole result: few</text>
+  <text x="405" y="280" text-anchor="middle" font-size="12" fill="#444">calls, but big buffers</text>
+
+  <!-- Panel 3: vectorized -->
+  <rect x="610" y="50" width="130" height="36" rx="6" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="675" y="73" text-anchor="middle" font-weight="bold" font-size="13">Parent operator</text>
+  <rect x="610" y="200" width="130" height="36" rx="6" fill="#e6f0ff" stroke="#4a78c2" stroke-width="2"/>
+  <text x="675" y="223" text-anchor="middle" font-weight="bold" font-size="13">Child operator</text>
+  <line x1="645" y1="88" x2="645" y2="198" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <text x="638" y="148" text-anchor="end" font-size="12" fill="#555">Next()</text>
+  <line x1="705" y1="198" x2="705" y2="88" stroke="#777" stroke-width="2" marker-end="url(#a)"/>
+  <g fill="#ffd9b3" stroke="#2f8f4e" stroke-width="1.5">
+    <rect x="713" y="116" width="30" height="14"/><rect x="713" y="133" width="30" height="14"/><rect x="713" y="150" width="30" height="14"/><rect x="713" y="167" width="30" height="14"/>
+  </g>
+  <text x="749" y="146" font-size="12" fill="#444">a batch</text>
+  <text x="675" y="264" text-anchor="middle" font-size="12" fill="#444">One call per batch: tight loops,</text>
+  <text x="675" y="280" text-anchor="middle" font-size="12" fill="#444">good for analytics</text>
+</svg>

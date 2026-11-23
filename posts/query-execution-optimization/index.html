@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.11.9">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Randall Kharkrang">
+<meta name="dcterms.date" content="2026-11-23">
+<meta name="description" content="Processing models, access methods, expression evaluation, parallel execution, rule-based and cost-based optimization, join ordering and cardinality estimation: from a plan tree to running code and back to how that plan was chosen.">
+
+<title>Query Execution and Optimization – Database Notes</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-56996c7b5257095e64120a8d6d543cad.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<script src="../../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Database Notes</span>
+    </a>
+  </div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+            <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Query Execution and Optimization</h1>
+            <p class="subtitle lead">How a database runs a query plan, runs it in parallel, and picks the plan in the first place</p>
+                  <div>
+        <div class="description">
+          Processing models, access methods, expression evaluation, parallel execution, rule-based and cost-based optimization, join ordering and cardinality estimation: from a plan tree to running code and back to how that plan was chosen.
+        </div>
+      </div>
+                          <div class="quarto-categories">
+                <div class="quarto-category">databases</div>
+                <div class="quarto-category">query-execution</div>
+                <div class="quarto-category">query-optimization</div>
+                <div class="quarto-category">parallelism</div>
+                <div class="quarto-category">cost-model</div>
+                <div class="quarto-category">cmu-15445</div>
+              </div>
+                  </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Randall Kharkrang </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">November 23, 2026</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#where-we-are-in-the-stack" id="toc-where-we-are-in-the-stack" class="nav-link active" data-scroll-target="#where-we-are-in-the-stack">Where we are in the stack</a></li>
+  <li><a href="#part-1-executing-a-plan" id="toc-part-1-executing-a-plan" class="nav-link" data-scroll-target="#part-1-executing-a-plan">Part 1: Executing a plan</a>
+  <ul class="collapse">
+  <li><a href="#a-plan-is-a-tree-of-operators" id="toc-a-plan-is-a-tree-of-operators" class="nav-link" data-scroll-target="#a-plan-is-a-tree-of-operators">A plan is a tree of operators</a></li>
+  <li><a href="#processing-models" id="toc-processing-models" class="nav-link" data-scroll-target="#processing-models">Processing models</a>
+  <ul class="collapse">
+  <li><a href="#iterator-model-volcano" id="toc-iterator-model-volcano" class="nav-link" data-scroll-target="#iterator-model-volcano">Iterator model (Volcano)</a></li>
+  <li><a href="#materialization-model" id="toc-materialization-model" class="nav-link" data-scroll-target="#materialization-model">Materialization model</a></li>
+  <li><a href="#vectorized-batch-model" id="toc-vectorized-batch-model" class="nav-link" data-scroll-target="#vectorized-batch-model">Vectorized (batch) model</a></li>
+  </ul></li>
+  <li><a href="#pull-or-push" id="toc-pull-or-push" class="nav-link" data-scroll-target="#pull-or-push">Pull or push?</a></li>
+  <li><a href="#access-methods" id="toc-access-methods" class="nav-link" data-scroll-target="#access-methods">Access methods</a>
+  <ul class="collapse">
+  <li><a href="#sequential-scan" id="toc-sequential-scan" class="nav-link" data-scroll-target="#sequential-scan">Sequential scan</a></li>
+  <li><a href="#data-skipping" id="toc-data-skipping" class="nav-link" data-scroll-target="#data-skipping">Data skipping</a></li>
+  <li><a href="#index-scan" id="toc-index-scan" class="nav-link" data-scroll-target="#index-scan">Index scan</a></li>
+  <li><a href="#multi-index-scan" id="toc-multi-index-scan" class="nav-link" data-scroll-target="#multi-index-scan">Multi-index scan</a></li>
+  </ul></li>
+  <li><a href="#modification-queries" id="toc-modification-queries" class="nav-link" data-scroll-target="#modification-queries">Modification queries</a>
+  <ul class="collapse">
+  <li><a href="#the-halloween-problem" id="toc-the-halloween-problem" class="nav-link" data-scroll-target="#the-halloween-problem">The Halloween problem</a></li>
+  </ul></li>
+  <li><a href="#expression-evaluation" id="toc-expression-evaluation" class="nav-link" data-scroll-target="#expression-evaluation">Expression evaluation</a></li>
+  </ul></li>
+  <li><a href="#part-2-parallel-execution" id="toc-part-2-parallel-execution" class="nav-link" data-scroll-target="#part-2-parallel-execution">Part 2: Parallel execution</a>
+  <ul class="collapse">
+  <li><a href="#process-models" id="toc-process-models" class="nav-link" data-scroll-target="#process-models">Process models</a></li>
+  <li><a href="#inter-query-and-intra-query-parallelism" id="toc-inter-query-and-intra-query-parallelism" class="nav-link" data-scroll-target="#inter-query-and-intra-query-parallelism">Inter-query and intra-query parallelism</a>
+  <ul class="collapse">
+  <li><a href="#exchange-operators" id="toc-exchange-operators" class="nav-link" data-scroll-target="#exchange-operators">Exchange operators</a></li>
+  </ul></li>
+  <li><a href="#io-parallelism" id="toc-io-parallelism" class="nav-link" data-scroll-target="#io-parallelism">I/O parallelism</a></li>
+  </ul></li>
+  <li><a href="#part-3-query-optimization" id="toc-part-3-query-optimization" class="nav-link" data-scroll-target="#part-3-query-optimization">Part 3: Query optimization</a>
+  <ul class="collapse">
+  <li><a href="#why-it-matters-a-worked-example" id="toc-why-it-matters-a-worked-example" class="nav-link" data-scroll-target="#why-it-matters-a-worked-example">Why it matters: a worked example</a></li>
+  <li><a href="#what-an-optimizer-does" id="toc-what-an-optimizer-does" class="nav-link" data-scroll-target="#what-an-optimizer-does">What an optimizer does</a></li>
+  <li><a href="#transformations-rewriting-the-plan" id="toc-transformations-rewriting-the-plan" class="nav-link" data-scroll-target="#transformations-rewriting-the-plan">Transformations: rewriting the plan</a>
+  <ul class="collapse">
+  <li><a href="#relational-algebra-equivalences" id="toc-relational-algebra-equivalences" class="nav-link" data-scroll-target="#relational-algebra-equivalences">Relational algebra equivalences</a></li>
+  <li><a href="#the-rewriting-playbook" id="toc-the-rewriting-playbook" class="nav-link" data-scroll-target="#the-rewriting-playbook">The rewriting playbook</a></li>
+  <li><a href="#expression-rewriting" id="toc-expression-rewriting" class="nav-link" data-scroll-target="#expression-rewriting">Expression rewriting</a></li>
+  <li><a href="#how-many-join-orders-are-there" id="toc-how-many-join-orders-are-there" class="nav-link" data-scroll-target="#how-many-join-orders-are-there">How many join orders are there?</a></li>
+  </ul></li>
+  <li><a href="#search-strategies" id="toc-search-strategies" class="nav-link" data-scroll-target="#search-strategies">Search strategies</a>
+  <ul class="collapse">
+  <li><a href="#heuristic-vs-cost-based" id="toc-heuristic-vs-cost-based" class="nav-link" data-scroll-target="#heuristic-vs-cost-based">Heuristic vs cost-based</a></li>
+  <li><a href="#single-table-queries-access-path-selection" id="toc-single-table-queries-access-path-selection" class="nav-link" data-scroll-target="#single-table-queries-access-path-selection">Single-table queries: access path selection</a></li>
+  <li><a href="#multi-table-queries-bottom-up-system-r-style" id="toc-multi-table-queries-bottom-up-system-r-style" class="nav-link" data-scroll-target="#multi-table-queries-bottom-up-system-r-style">Multi-table queries: bottom-up (System R style)</a></li>
+  <li><a href="#multi-table-queries-top-down-volcano-and-cascades" id="toc-multi-table-queries-top-down-volcano-and-cascades" class="nav-link" data-scroll-target="#multi-table-queries-top-down-volcano-and-cascades">Multi-table queries: top-down (Volcano and Cascades)</a></li>
+  </ul></li>
+  <li><a href="#cost-models-and-statistics" id="toc-cost-models-and-statistics" class="nav-link" data-scroll-target="#cost-models-and-statistics">Cost models and statistics</a>
+  <ul class="collapse">
+  <li><a href="#statistics" id="toc-statistics" class="nav-link" data-scroll-target="#statistics">Statistics</a></li>
+  <li><a href="#histograms" id="toc-histograms" class="nav-link" data-scroll-target="#histograms">Histograms</a></li>
+  <li><a href="#other-summaries" id="toc-other-summaries" class="nav-link" data-scroll-target="#other-summaries">Other summaries</a></li>
+  <li><a href="#selectivity-estimating-how-many-rows-pass" id="toc-selectivity-estimating-how-many-rows-pass" class="nav-link" data-scroll-target="#selectivity-estimating-how-many-rows-pass">Selectivity: estimating how many rows pass</a></li>
+  <li><a href="#the-three-assumptions" id="toc-the-three-assumptions" class="nav-link" data-scroll-target="#the-three-assumptions">The three assumptions</a></li>
+  <li><a href="#join-size-estimation" id="toc-join-size-estimation" class="nav-link" data-scroll-target="#join-size-estimation">Join size estimation</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#cheat-sheet" id="toc-cheat-sheet" class="nav-link" data-scroll-target="#cheat-sheet">Cheat sheet</a>
+  <ul class="collapse">
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content quarto-banner-title-block" id="quarto-document-content" tabindex="-1">
+
+
+
+
+
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Slides this post is based on:</strong> <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/13-queryexecution1.pdf">Query Execution I</a>, <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/14-queryexecution2.pdf">Query Execution II</a>, <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/15-optimization1.pdf">Query Optimization I</a> and <a href="https://15445.courses.cs.cmu.edu/fall2025/slides/16-optimization2.pdf">Query Optimization II</a> from CMU 15-445/645 (Prof.&nbsp;Andy Pavlo).</p>
+<p>The ideas come from those slides. The diagrams, examples and analogies are my own, so any mistakes are mine. The post has three parts: <strong>executing a plan</strong>, <strong>executing it in parallel</strong>, and <strong>choosing the plan</strong> (optimization).</p>
+</div>
+</div>
+</div>
+<section id="where-we-are-in-the-stack" class="level2">
+<h2 class="anchored" data-anchor-id="where-we-are-in-the-stack">Where we are in the stack</h2>
+<p>Earlier posts covered the <a href="../../posts/buffer-pool/index.html">buffer pool</a>, <a href="../../posts/indexes/index.html">indexes</a>, and the algorithms for <a href="../../posts/sorting-aggregations-joins/index.html">sorting, aggregation and joins</a>. Those are the <em>parts</em>. This post is about the <em>machine that uses them</em>:</p>
+<ol type="1">
+<li><strong>Executing</strong> a plan: how operators pass data to each other, and how a scan or an expression is evaluated.</li>
+<li><strong>Parallelism</strong>: how to use many cores and many disks for one query.</li>
+<li><strong>Optimizing</strong>: how the database chooses <em>which</em> plan to run out of a huge number of equivalent ones.</li>
+</ol>
+<p>Here is the whole journey of a SQL string:</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart LR
+    Q["SQL query"] --&gt; P["Parser"]
+    P --&gt; AST["Abstract syntax tree"]
+    AST --&gt; B["Binder"]
+    B --&gt; L["Logical plan"]
+    L --&gt; O["Optimizer"]
+    O --&gt; PP["Physical plan"]
+    PP --&gt; E["Execution engine"]
+    CAT[("System catalog: names to internal ids, schemas, statistics")] --&gt; B
+    CAT --&gt; O
+    CM["Cost model"] --&gt; O
+</pre>
+</div>
+<p></p><figcaption> From SQL text to a running plan</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<ul>
+<li>The <strong>parser</strong> checks the syntax and builds an abstract syntax tree.</li>
+<li>The <strong>binder</strong> uses the catalog to turn names (<code>R</code>, <code>value</code>) into internal ids and checks that they exist.</li>
+<li>The <strong>optimizer</strong> turns the <em>logical</em> plan (what to compute) into a <em>physical</em> plan (which algorithms to use), using a <strong>cost model</strong> fed by statistics.</li>
+<li>The <strong>execution engine</strong> runs the physical plan.</li>
+</ul>
+<p>An analogy I like: the optimizer is a GPS and the execution engine is the driver. The GPS can only choose a route from its <em>map and traffic estimates</em>. If those are stale, you are going to take a bad road, however well you drive.</p>
+</section>
+<section id="part-1-executing-a-plan" class="level1">
+<h1>Part 1: Executing a plan</h1>
+<section id="a-plan-is-a-tree-of-operators" class="level2">
+<h2 class="anchored" data-anchor-id="a-plan-is-a-tree-of-operators">A plan is a tree of operators</h2>
+<p>Take a simple query:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> R.<span class="kw">id</span>, S.cdate</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">FROM</span> R <span class="kw">JOIN</span> S <span class="kw">ON</span> R.<span class="kw">id</span> <span class="op">=</span> S.<span class="kw">id</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> S.<span class="fu">value</span> <span class="op">&gt;</span> <span class="dv">100</span>;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The plan is a tree: scans at the leaves, a join in the middle, a projection at the top. The DBMS can split it into <strong>pipelines</strong>: stretches of the plan where a tuple can flow from one operator to the next without being stored.</p>
+<p>An operator that must see <strong>all</strong> of its input before it can emit anything is a <strong>pipeline breaker</strong>. The usual suspects are the <em>build side</em> of a hash join, subqueries that must finish first, and <code>ORDER BY</code>.</p>
+<div id="fig-pipelines" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two lanes. Pipeline 1 scans R and builds a hash table. Pipeline 2 scans S, filters, probes the hash table, projects and outputs the result.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pipelines-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/pipelines.svg" class="img-fluid figure-img" alt="Two lanes. Pipeline 1 scans R and builds a hash table. Pipeline 2 scans S, filters, probes the hash table, projects and outputs the result.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pipelines-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: The example query as two pipelines. The build side of the hash join is a pipeline breaker.
+</figcaption>
+</figure>
+</div>
+<p><a href="#fig-pipelines" class="quarto-xref">Figure&nbsp;1</a> is the idea to keep in mind for the rest of the post: <em>inside</em> a pipeline data streams, <em>between</em> pipelines it waits.</p>
+</section>
+<section id="processing-models" class="level2">
+<h2 class="anchored" data-anchor-id="processing-models">Processing models</h2>
+<p>A <strong>processing model</strong> defines how operators talk to each other: who asks for data, and how much moves per request. There are three.</p>
+<section id="iterator-model-volcano" class="level3">
+<h3 class="anchored" data-anchor-id="iterator-model-volcano">Iterator model (Volcano)</h3>
+<p>Every operator implements three functions:</p>
+<ul>
+<li><code>Open()</code>: set yourself up (and open your children).</li>
+<li><code>Next()</code>: give me <strong>one</strong> tuple, or “no more”.</li>
+<li><code>Close()</code>: clean up.</li>
+</ul>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Next(<span class="va">self</span>):            <span class="co"># a filter operator</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        t <span class="op">=</span> <span class="va">self</span>.child.Next()</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> t <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span>    <span class="co"># child is exhausted</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.predicate(t):</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> t       <span class="co"># hand exactly one tuple up</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The root calls <code>Next()</code> on its child, which calls <code>Next()</code> on <em>its</em> child, all the way down to a scan. Think of an <strong>assembly line where the last station pulls one item at a time</strong>. Nothing is stored in between, so pipelines come for free, and the code is simple. That is why nearly every database uses it, in one form or another.</p>
+<p>The price: one function call (usually a virtual call) <em>per tuple, per operator</em>. On big analytical scans that overhead adds up.</p>
+<p>Some operators are naturally <strong>blocking</strong> under this model: a join builds its hash table fully before its first <code>Next()</code> result, and <code>ORDER BY</code> has to see everything. <code>LIMIT</code> is the happy case: it can stop asking for tuples after <em>n</em>.</p>
+</section>
+<section id="materialization-model" class="level3">
+<h3 class="anchored" data-anchor-id="materialization-model">Materialization model</h3>
+<p>Each operator processes <strong>all</strong> its input and returns <strong>all</strong> its output at once, as one big result. There is no per-tuple calling overhead; each operator is called once.</p>
+<p>This is the <em>“do the whole stage, then start the next”</em> approach. It works well for <strong>OLTP</strong>, where queries touch few tuples, so the “all of it” is small. It is bad for big analytical queries because intermediate results can be huge. The slides mention it is used in, for example, MonetDB, and in some systems you can push a <code>LIMIT</code> hint into the operator so it does not produce more than needed.</p>
+</section>
+<section id="vectorized-batch-model" class="level3">
+<h3 class="anchored" data-anchor-id="vectorized-batch-model">Vectorized (batch) model</h3>
+<p>The middle road: like the iterator model, but <code>Next()</code> returns a <strong>batch</strong> (say a few hundred or a thousand tuples, often stored column by column) instead of one tuple. Each operator then loops over the batch in a tight loop.</p>
+<p>Why this is a good idea:</p>
+<ul>
+<li>Function-call overhead is divided by the batch size.</li>
+<li>Tight loops over arrays keep the CPU’s caches and pipelines happy, and allow <strong>SIMD</strong> instructions.</li>
+<li>The batch can carry a <em>null bitmap</em> so nulls are handled without branching per value.</li>
+</ul>
+<p>This is the standard choice for analytical (OLAP) systems.</p>
+<div id="fig-models" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Three panels comparing the iterator model (one tuple per call), the materialization model (all rows in one call) and the vectorized model (one batch per call).">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-models-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/processing-models.svg" class="img-fluid figure-img" alt="Three panels comparing the iterator model (one tuple per call), the materialization model (all rows in one call) and the vectorized model (one batch per call).">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-models-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: What flows between two operators in each model
+</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Unit per call</th>
+<th>Strength</th>
+<th>Weakness</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Iterator</td>
+<td>1 tuple</td>
+<td>Simple, pipelined, easy <code>LIMIT</code></td>
+<td>Many calls, poor CPU efficiency</td>
+<td>Most row stores</td>
+</tr>
+<tr class="even">
+<td>Materialization</td>
+<td>All tuples</td>
+<td>No per-tuple overhead</td>
+<td>Big intermediate results</td>
+<td>OLTP, in-memory systems</td>
+</tr>
+<tr class="odd">
+<td>Vectorized</td>
+<td>A batch</td>
+<td>Fewer calls, SIMD friendly</td>
+<td>A bit more bookkeeping</td>
+<td>Analytics (OLAP)</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="pull-or-push" class="level2">
+<h2 class="anchored" data-anchor-id="pull-or-push">Pull or push?</h2>
+<p>There are two directions to drive a plan:</p>
+<p><strong>Pull (top-down).</strong> The root asks its child for data, which asks its child, and so on. This is the iterator model above. <code>LIMIT</code> is easy (just stop asking). The cost is control flow bouncing through many calls.</p>
+<p><strong>Push (bottom-up).</strong> The <em>leaves</em> drive: each scan reads a tuple and <strong>pushes</strong> it into its parent, which pushes its result to <em>its</em> parent. The big win is <strong>fusing</strong> a whole pipeline into one tight loop, so the tuple stays in a CPU register as it goes through several operators:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># push-based, fused pipeline 2 from the example (conceptually)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> s <span class="kw">in</span> scan_S:</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> s.value <span class="op">&gt;</span> <span class="dv">100</span>:                    <span class="co"># filter</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> r <span class="kw">in</span> hash_table.get(s.<span class="bu">id</span>):   <span class="co"># probe</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>            emit(r.<span class="bu">id</span>, s.cdate)          <span class="co"># project</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>That is great for caches and registers. The difficulty is operators that do not fit the pattern well (the slides single out <strong>sort-merge join</strong> as hard in a push world), and the code is harder to reason about. Pushing is also commonly paired with a scheduler that decides which pipeline runs next and where output buffers live.</p>
+<p>Both are widely used, but pull is by far the more traditional.</p>
+</section>
+<section id="access-methods" class="level2">
+<h2 class="anchored" data-anchor-id="access-methods">Access methods</h2>
+<p>An <strong>access method</strong> is how an operator reads data from a table.</p>
+<section id="sequential-scan" class="level3">
+<h3 class="anchored" data-anchor-id="sequential-scan">Sequential scan</h3>
+<p>For each page, fetch it from the buffer pool and examine every tuple. The slides list the usual ways to make this cheaper:</p>
+<ul>
+<li><strong>Prefetching</strong>, <strong>scan sharing</strong> (queries share one scan), and <strong>buffer pool bypass</strong> so a big scan does not wipe the cache.</li>
+<li><strong>Compression / data encoding</strong> so there is less to read.</li>
+<li><strong>Clustering or sorting</strong> so related data sits together.</li>
+<li><strong>Late materialization</strong>: carry only column ids and offsets and fetch the other columns only for rows that survive.</li>
+<li><strong>Materialized views and result caching</strong>.</li>
+<li><strong>Parallelization</strong>: tasks across threads, and data parallelism (SIMD).</li>
+<li><strong>Code specialization / compilation</strong> of the scan.</li>
+<li><strong>Data skipping</strong> (below).</li>
+</ul>
+</section>
+<section id="data-skipping" class="level3">
+<h3 class="anchored" data-anchor-id="data-skipping">Data skipping</h3>
+<p>The cheapest page is the one you do not read. Two flavours:</p>
+<ul>
+<li><strong>Approximate queries (lossy):</strong> run the query over a sample and accept an approximate answer.</li>
+<li><strong>Zone maps (lossless):</strong> keep pre-computed summaries per page, and look at the summary before the page.</li>
+</ul>
+<p>A zone map for a page containing <code>100, 200, 300, 400, 400</code>:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>MIN</th>
+<th>MAX</th>
+<th>AVG</th>
+<th>SUM</th>
+<th>COUNT</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>100</td>
+<td>400</td>
+<td>280</td>
+<td>1400</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p>For <code>SELECT * FROM table WHERE val &gt; 600</code>, the MAX is 400, so the entire page is skipped without being read. As a bonus, some aggregates (like <code>SUM</code> or <code>COUNT</code> over a whole page) can be answered directly from the zone map.</p>
+</section>
+<section id="index-scan" class="level3">
+<h3 class="anchored" data-anchor-id="index-scan">Index scan</h3>
+<p>If an index covers the predicate, you can use it instead of scanning. But <em>which</em> index, and <em>whether at all</em>, depends on <strong>the data</strong>, not on the query text. Take</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> students</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> age <span class="op">&lt;</span> <span class="dv">30</span> <span class="kw">AND</span> dept <span class="op">=</span> <span class="st">'CS'</span> <span class="kw">AND</span> country <span class="op">=</span> <span class="st">'US'</span>;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>with indexes on <code>age</code> and on <code>dept</code>:</p>
+<ul>
+<li>Scenario A: 99 students are under 30, but only 2 are in CS. The <code>dept</code> index returns 2 candidates, so use it and check <code>age</code> on those.</li>
+<li>Scenario B: 2 students are under 30, but 99 are in CS. Now the <code>age</code> index is the better start.</li>
+</ul>
+<p>The same query, different best plan. That is the entire reason an optimizer needs statistics.</p>
+</section>
+<section id="multi-index-scan" class="level3">
+<h3 class="anchored" data-anchor-id="multi-index-scan">Multi-index scan</h3>
+<p>If several indexes each help, use <strong>all</strong> of them. Each index returns a <em>set of record ids</em>, then the sets are combined: <strong>intersection</strong> for <code>AND</code>, <strong>union</strong> for <code>OR</code>, using bitmaps or hash tables. Only then are records fetched, and the leftover predicates are checked.</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart LR
+    I1["Index on age: ids where age &lt; 30"] --&gt; X["Intersect id sets (bitmap or hash table)"]
+    I2["Index on dept: ids where dept = CS"] --&gt; X
+    X --&gt; F["Fetch the matching records"]
+    F --&gt; P["Check the remaining predicate: country = US"]
+    P --&gt; O["Output"]
+</pre>
+</div>
+<p></p><figcaption> A multi-index scan for age &lt; 30 AND dept = ‘CS’ AND country = ‘US’</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>PostgreSQL calls this a <em>bitmap scan</em>, MySQL calls it <em>index merge</em>, and other systems have their own names.</p>
+</section>
+</section>
+<section id="modification-queries" class="level2">
+<h2 class="anchored" data-anchor-id="modification-queries">Modification queries</h2>
+<p><code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> are operators too, but they <em>change</em> data instead of just producing it.</p>
+<ul>
+<li>For <code>UPDATE</code> and <code>DELETE</code>, the child operator passes up <strong>record ids</strong>, and the modify operator uses them to find the tuples. The operator needs to remember which tuples it has already touched.</li>
+<li>For <code>INSERT</code>, either the operator <strong>materializes</strong> the tuples itself (and inserts them), or it inserts whatever its child hands it.</li>
+<li><strong>Constraints</strong> (keys, foreign keys, checks) can be checked immediately or deferred to commit time.</li>
+<li>The operator can output the record ids, or the new data if the query has <code>RETURNING</code>.</li>
+</ul>
+<section id="the-halloween-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-halloween-problem">The Halloween problem</h3>
+<p>This one is a classic, and the kind of bug that makes you appreciate why “track what you changed” matters. Consider:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">UPDATE</span> people <span class="kw">SET</span> salary <span class="op">=</span> salary <span class="op">+</span> <span class="dv">100</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> salary <span class="op">&lt;</span> <span class="dv">1100</span>;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Suppose the planner uses an <strong>index on <code>salary</code></strong>, scanning it in increasing order. Andy earns 999:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Step</th>
+<th>What the scan sees</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Andy, salary 999 (&lt; 1100)</td>
+<td>Raised to 1099. The index entry for Andy <strong>moves</strong> to position 1099, <em>later in the same scan</em>.</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>… scan continues forward …</td>
+<td>It reaches Andy again at 1099.</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Andy, salary 1099 (&lt; 1100)</td>
+<td>Raised again to 1199. Now it is out of range.</td>
+</tr>
+</tbody>
+</table>
+<p>Andy got <strong>two raises</strong> from a single query. The scan chased the update it was making, like a runner running along a conveyor belt that carries them forward.</p>
+<p><strong>Fix:</strong> have the query remember the record ids it has already modified, and skip them. According to the slides, this was found by the System R team on Halloween in 1976, hence the name.</p>
+</section>
+</section>
+<section id="expression-evaluation" class="level2">
+<h2 class="anchored" data-anchor-id="expression-evaluation">Expression evaluation</h2>
+<p>A <code>WHERE</code> clause is an <strong>expression tree</strong>. For <code>S.val = $1 + 9</code>:</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    EQ["="] --&gt; A["Attribute: S.val"]
+    EQ --&gt; PL["+"]
+    PL --&gt; PA["Parameter: $1"]
+    PL --&gt; C9["Constant: 9"]
+</pre>
+</div>
+<p></p><figcaption> Expression tree for S.val = $1 + 9</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>To evaluate it for a tuple you need an <strong>execution context</strong>: the current tuple, the query parameters, and the table schema. Then you walk the tree: the attribute node reads <code>S.val</code> from the tuple, the parameter node reads <code>$1</code>, and so on. With <code>$1 = 991</code>, <code>991 + 9 = 1000</code>, and the tuple passes if its <code>val</code> is <code>1000</code>.</p>
+<p>The problem: walking a tree for <strong>every tuple</strong> is slow, because each node is a function call and a branch. The remedies:</p>
+<ul>
+<li><strong>Compile the expression</strong> (JIT) into machine code, so there is no tree walking at all.</li>
+<li><strong>Vectorize</strong> the evaluation, so one node processes a whole batch.</li>
+<li><strong>Constant folding</strong>: evaluate anything that does not depend on the tuple <em>once</em> up front (e.g.&nbsp;<code>$1 + 9</code>, with <code>$1</code> known, becomes the constant <code>1000</code>).</li>
+<li><strong>Common sub-expression elimination</strong>: if <code>(x + 1)</code> appears twice, compute it once.</li>
+</ul>
+</section>
+</section>
+<section id="part-2-parallel-execution" class="level1">
+<h1>Part 2: Parallel execution</h1>
+<p>A modern machine has many cores, and many disks. A good DBMS uses them to run <strong>one query faster</strong>, or <strong>many queries at once</strong>. (A <em>distributed</em> DBMS spreads this over several machines, which adds networking. Here we only talk about <em>parallel</em>: many resources, one machine, communicating cheaply.)</p>
+<section id="process-models" class="level2">
+<h2 class="anchored" data-anchor-id="process-models">Process models</h2>
+<p>How does the system organise its <strong>workers</strong>?</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Idea</th>
+<th>Pros and cons</th>
+<th>Examples (from the slides)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Process per worker</td>
+<td>Each worker is an OS process; shared memory for the buffer pool</td>
+<td>A crash takes down only that process; more OS overhead</td>
+<td>PostgreSQL, IBM DB2, Oracle (older)</td>
+</tr>
+<tr class="even">
+<td>Thread per worker</td>
+<td>One process, many threads</td>
+<td>Less overhead and cheaper context switches; one bad thread can kill the process</td>
+<td>MS SQL Server, MySQL, newer Oracle</td>
+</tr>
+<tr class="odd">
+<td>Embedded</td>
+<td>The DBMS runs <em>inside</em> the application’s process</td>
+<td>No server at all; the app controls the threads</td>
+<td>SQLite, RocksDB, DuckDB</td>
+</tr>
+</tbody>
+</table>
+<p>The scheduler has to decide: how many tasks, on how many cores, which core, and where the output goes. The slides’ point: the DBMS nearly always knows more about the work than the OS does, so DBMSs generally do their own scheduling.</p>
+</section>
+<section id="inter-query-and-intra-query-parallelism" class="level2">
+<h2 class="anchored" data-anchor-id="inter-query-and-intra-query-parallelism">Inter-query and intra-query parallelism</h2>
+<ul>
+<li><strong>Inter-query</strong>: run different queries at the same time. This is what you need for throughput. With only reads it is easy; once queries write, you need concurrency control (a topic of its own).</li>
+<li><strong>Intra-query</strong>: split <em>one</em> query into parallel pieces. This is what brings latency down for big queries.</li>
+</ul>
+<p>Intra-query parallelism comes in three styles:</p>
+<ol type="1">
+<li><strong>Intra-operator (horizontal).</strong> Many workers run the <em>same</em> operator on different slices of the data. This is the most common one.</li>
+<li><strong>Inter-operator (vertical, pipelined).</strong> Different operators run at the same time in different workers, passing tuples along. Think of a join in worker 1 and a slow projection (say a user-defined function) in worker 2.</li>
+<li><strong>Bushy.</strong> Different <em>branches</em> of the plan tree run concurrently. For <code>(A ⋈ B) ⋈ (C ⋈ D)</code>, workers 1 and 2 compute the two inner joins at the same time, and workers 3 and 4 do the final join.</li>
+</ol>
+<section id="exchange-operators" class="level3">
+<h3 class="anchored" data-anchor-id="exchange-operators">Exchange operators</h3>
+<p>To glue parallel pieces back together you need an <strong>exchange operator</strong>. Think of a parcel sorting hub:</p>
+<ul>
+<li><strong>Gather</strong>: many input streams, <strong>one</strong> output stream. (PostgreSQL calls this exactly <code>Gather</code>.)</li>
+<li><strong>Distribute</strong>: one input stream split into several.</li>
+<li><strong>Repartition</strong>: many in, many out, re-shuffled (for instance by hash of the join key).</li>
+</ul>
+<p>A parallel hash join then looks like this:</p>
+<div id="fig-exchange" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Three workers each scan a slice of A and insert into a shared hash table. Three workers each scan a slice of B and probe it. An exchange gathers the results into one stream.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-exchange-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/exchange-parallel.svg" class="img-fluid figure-img" alt="Three workers each scan a slice of A and insert into a shared hash table. Three workers each scan a slice of B and probe it. An exchange gathers the results into one stream.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-exchange-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: An intra-operator parallel hash join. Workers build one shared table, then probe it, and an exchange gathers the output.
+</figcaption>
+</figure>
+</div>
+<p>For a <strong>parallel GRACE hash join</strong>, the same idea applies to the partitioning phase: each worker partitions its slice of the data by hash, so matching tuples end up in the same partition, and each partition pair is then joined by a different worker. See the <a href="../../posts/sorting-aggregations-joins/index.html">joins section</a> for the base algorithm.</p>
+</section>
+</section>
+<section id="io-parallelism" class="level2">
+<h2 class="anchored" data-anchor-id="io-parallelism">I/O parallelism</h2>
+<p>More workers do not help if they all queue up for <strong>one disk</strong>. The disk is usually the bottleneck, so the data must be spread out too:</p>
+<ul>
+<li><strong>Multiple disks per database</strong>, or one database per disk.</li>
+<li><strong>One relation per disk</strong>, or <strong>split one relation across disks</strong>.</li>
+<li><strong>RAID 0 (striping)</strong> spreads data for speed. <strong>RAID 1 (mirroring)</strong> duplicates it for safety (and can speed up reads).</li>
+<li>Within the DBMS: <strong>tablespaces</strong> (PostgreSQL) and <strong>table partitioning</strong> place data on specific devices.</li>
+</ul>
+<p>The honest conclusion is that parallelism is hard to get right: coordination overhead, scheduling, contention for shared resources, and concurrency issues all bite. More workers is not automatically faster.</p>
+</section>
+</section>
+<section id="part-3-query-optimization" class="level1">
+<h1>Part 3: Query optimization</h1>
+<section id="why-it-matters-a-worked-example" class="level2">
+<h2 class="anchored" data-anchor-id="why-it-matters-a-worked-example">Why it matters: a worked example</h2>
+<p>The slides use one small example to show how large the gap can be. The catalog:</p>
+<ul>
+<li><code>Emp(ssn, ename, addr, sal, did)</code>: 10,000 records, 1,000 pages.</li>
+<li><code>Dept(did, dname, floor, mgr)</code>: 500 records, 50 pages.</li>
+</ul>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> <span class="kw">DISTINCT</span> ename</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">FROM</span> Emp E <span class="kw">JOIN</span> Dept D <span class="kw">ON</span> E.did <span class="op">=</span> D.did</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> D.dname <span class="op">=</span> <span class="st">'Toy'</span>;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The same <em>answer</em>, computed with five different plans:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Plan</th>
+<th>I/Os (from the slides)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Cross product <code>Emp × Dept</code>, write a temp file, then filter, project, distinct</td>
+<td>about 2,000,000</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Real join (page nested loop) instead of a cross product</td>
+<td>about 54,000</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Sort-merge join instead of nested loop (50 buffers)</td>
+<td>7,159</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Same, but pipeline results instead of writing temp files</td>
+<td>3,151</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>Filter <code>dname = 'Toy'</code> first through an index, then an index nested-loop join into <code>Emp</code></td>
+<td><strong>37</strong></td>
+</tr>
+</tbody>
+</table>
+<p>From 2 million I/Os down to 37, <strong>same result</strong>. This is a factor of roughly 50,000 (my arithmetic: <span class="math inline">\(2{,}000{,}000 / 37 \approx 54{,}000\)</span>). The 37 breaks down as: 3 reads + 1 write to find <code>'Toy'</code> in <code>Dept</code> via its index; <code>1 + 3</code> index reads + <code>20</code> pointer-chasing reads (10,000 / 500 = 20 employees per department) + 4 writes for the join; and 4 reads + 1 write for the final distinct.</p>
+<p>So the DBMS optimizer is arguably the part that matters most for performance, and also one of the hardest components to build.</p>
+</section>
+<section id="what-an-optimizer-does" class="level2">
+<h2 class="anchored" data-anchor-id="what-an-optimizer-does">What an optimizer does</h2>
+<blockquote class="blockquote">
+<p>Given a query’s <strong>logical plan</strong>, generate a semantically equivalent <strong>physical plan</strong> with the lowest cost it can find.</p>
+</blockquote>
+<p>Two kinds of plan:</p>
+<ul>
+<li><strong>Logical plan</strong>: <em>what</em> to compute, in relational algebra. Operators like “join”, “filter”.</li>
+<li><strong>Physical plan</strong>: <em>how</em> to compute it. Operators like “hash join”, “index scan on age”. The same logical plan has many physical plans.</li>
+</ul>
+<p>The optimizer has three jobs: <strong>(1)</strong> a set of <strong>transformations</strong> that generate equivalent plans, <strong>(2)</strong> a <strong>search strategy</strong> that explores them without trying all of them, and <strong>(3)</strong> a <strong>cost model</strong> that says which one is cheaper. The rest of this post follows that order.</p>
+<p>A note on scope: optimizers may work on one query at a time or look at several queries together (a granularity choice). Most work query by query.</p>
+</section>
+<section id="transformations-rewriting-the-plan" class="level2">
+<h2 class="anchored" data-anchor-id="transformations-rewriting-the-plan">Transformations: rewriting the plan</h2>
+<section id="relational-algebra-equivalences" class="level3">
+<h3 class="anchored" data-anchor-id="relational-algebra-equivalences">Relational algebra equivalences</h3>
+<p>The key point is that algebra has rules like “these two expressions give the same result”:</p>
+<ul>
+<li>A conjunctive filter can be <strong>split</strong>: <span class="math inline">\(\sigma_{p_1 \wedge p_2 \wedge p_3}(R) = \sigma_{p_1}(\sigma_{p_2}(\sigma_{p_3}(R)))\)</span>, and the pieces can be reordered.</li>
+<li>Joins are <strong>commutative</strong>, <span class="math inline">\(R \bowtie S = S \bowtie R\)</span>, and <strong>associative</strong>, <span class="math inline">\((R \bowtie S) \bowtie T = R \bowtie (S \bowtie T)\)</span>.</li>
+<li>Projections can be <strong>pushed down</strong> so only the needed columns travel up.</li>
+</ul>
+</section>
+<section id="the-rewriting-playbook" class="level3">
+<h3 class="anchored" data-anchor-id="the-rewriting-playbook">The rewriting playbook</h3>
+<p>Using an example with three tables:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> ARTIST.NAME</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">FROM</span> ARTIST, APPEARS, ALBUM</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a> <span class="kw">WHERE</span> ARTIST.<span class="kw">ID</span> <span class="op">=</span> APPEARS.ARTIST_ID</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>   <span class="kw">AND</span> APPEARS.ALBUM_ID <span class="op">=</span> ALBUM.<span class="kw">ID</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">AND</span> ALBUM.NAME <span class="op">=</span> <span class="st">'Mooshoo Tribute'</span>;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Read literally, the plan is: <strong>two cross products</strong>, then one giant filter, then project.</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    P["Project: ARTIST.NAME"] --&gt; S["Filter: ARTIST.ID = APPEARS.ARTIST_ID AND APPEARS.ALBUM_ID = ALBUM.ID AND ALBUM.NAME = Mooshoo Tribute"]
+    S --&gt; X2["Cross product"]
+    X2 --&gt; X1["Cross product"]
+    X2 --&gt; AL["ALBUM"]
+    X1 --&gt; AR["ARTIST"]
+    X1 --&gt; AP["APPEARS"]
+</pre>
+</div>
+<p></p><figcaption> The naive plan: cross products first, the filter last</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>The optimizer applies four rewrites:</p>
+<ol type="1">
+<li><strong>Split the conjunctive predicate</strong> into three small ones, so each can move on its own.</li>
+<li><strong>Predicate pushdown</strong>: move each filter as far down as it can go. <code>ALBUM.NAME = ...</code> only needs <code>ALBUM</code>, so it goes right on top of the <code>ALBUM</code> scan and removes almost all albums early.</li>
+<li><strong>Replace cartesian products with joins</strong>: a cross product followed by an equality filter <em>is</em> a join, and a join can use a hash join or an index.</li>
+<li><strong>Projection pushdown</strong>: keep only the columns that are needed later, as early as possible, so tuples get thinner.</li>
+</ol>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+
+<pre class="mermaid mermaid-js">flowchart TD
+    P["Project: ARTIST.NAME"] --&gt; J2["Join: APPEARS.ALBUM_ID = ALBUM.ID"]
+    J2 --&gt; J1["Join: ARTIST.ID = APPEARS.ARTIST_ID"]
+    J2 --&gt; PA["Project: ID"]
+    PA --&gt; F["Filter: ALBUM.NAME = Mooshoo Tribute"]
+    F --&gt; AL["ALBUM"]
+    J1 --&gt; PR["Project: ID, NAME"]
+    PR --&gt; AR["ARTIST"]
+    J1 --&gt; PP["Project: ARTIST_ID, ALBUM_ID"]
+    PP --&gt; AP["APPEARS"]
+</pre>
+</div>
+<p></p><figcaption> After the rewrites: filter pushed to ALBUM, joins instead of cross products, thin tuples</figcaption> </figure><p></p>
+</div>
+</div>
+</div>
+<p>These rules are always a win or a very safe bet, so a good optimizer applies them without needing a cost model.</p>
+</section>
+<section id="expression-rewriting" class="level3">
+<h3 class="anchored" data-anchor-id="expression-rewriting">Expression rewriting</h3>
+<p>Even a single predicate can be rewritten. Some examples:</p>
+<ul>
+<li><strong>Impossible predicates</strong> are folded: <code>WHERE 1 = 0</code> is always false, so the whole scan can be dropped. <code>WHERE NOW() IS NULL</code> is also always false.</li>
+<li><strong>Merging predicates</strong>: <code>val BETWEEN 1 AND 100 OR val BETWEEN 50 AND 150</code> is just <code>val BETWEEN 1 AND 150</code>.</li>
+</ul>
+</section>
+<section id="how-many-join-orders-are-there" class="level3">
+<h3 class="anchored" data-anchor-id="how-many-join-orders-are-there">How many join orders are there?</h3>
+<p>For a query joining <span class="math inline">\(n\)</span> tables there are <span class="math inline">\(n!\)</span> orderings of the leaves, and the join tree can take many shapes: the number of binary-tree shapes with <span class="math inline">\(n\)</span> leaves is the Catalan number <span class="math inline">\(C_{n-1}\)</span>. So the number of distinct join trees is</p>
+<p><span class="math display">\[n! \times C_{n-1}\]</span></p>
+<p>My own computed values:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Tables <span class="math inline">\(n\)</span></th>
+<th><span class="math inline">\(C_{n-1}\)</span></th>
+<th>Join trees <span class="math inline">\(n! \cdot C_{n-1}\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>2</td>
+<td>1</td>
+<td>2</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>2</td>
+<td>12</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td>5</td>
+<td>120</td>
+</tr>
+<tr class="even">
+<td>5</td>
+<td>14</td>
+<td>1,680</td>
+</tr>
+<tr class="odd">
+<td>10</td>
+<td>4,862</td>
+<td>about <span class="math inline">\(1.8 \times 10^{10}\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>Ten tables is not an unusual query, so no optimizer can just try everything. That is why search strategies are needed.</p>
+</section>
+</section>
+<section id="search-strategies" class="level2">
+<h2 class="anchored" data-anchor-id="search-strategies">Search strategies</h2>
+<section id="heuristic-vs-cost-based" class="level3">
+<h3 class="anchored" data-anchor-id="heuristic-vs-cost-based">Heuristic vs cost-based</h3>
+<ul>
+<li><strong>Heuristic / rule-based</strong>: a fixed set of rules (“always push filters down”, “always use an index if one exists”). Fast, no statistics needed, but it can pick bad plans because it cannot tell when the rule does not apply to <em>this</em> data. Early INGRES and old Oracle versions worked this way.</li>
+<li><strong>Cost-based</strong>: generate candidate plans and <strong>estimate the cost</strong> of each, using statistics. Much better plans, but you pay in optimization time and you depend on the quality of the estimates.</li>
+</ul>
+<p>Real systems use both: rules first for the obvious rewrites, then cost-based search for join order and access paths.</p>
+<p>Since the search space is huge, it needs <strong>termination conditions</strong>: a wall-clock time budget, a cost threshold (“good enough”), exhausting the search space, or a cap on the number of transformations tried.</p>
+</section>
+<section id="single-table-queries-access-path-selection" class="level3">
+<h3 class="anchored" data-anchor-id="single-table-queries-access-path-selection">Single-table queries: access path selection</h3>
+<p>For a query on one table there is no join order, just the choice of <strong>access path</strong>: sequential scan, which index, or multiple indexes. The optimizer picks it by estimated cost, usually with simple heuristics for the obvious cases (e.g.&nbsp;a primary-key lookup is always an index lookup).</p>
+<p>A key concept is whether a predicate is <strong>sargable</strong> (<em>Search ARGument ABLE</em>): can an index be used for it? <code>age = 30</code> can. <code>age + 1 = 31</code> or <code>UPPER(name) = 'BOB'</code> typically cannot, unless the optimizer rewrites it (or there is an index on the expression itself).</p>
+</section>
+<section id="multi-table-queries-bottom-up-system-r-style" class="level3">
+<h3 class="anchored" data-anchor-id="multi-table-queries-bottom-up-system-r-style">Multi-table queries: bottom-up (System R style)</h3>
+<p>IBM’s <strong>System R</strong> optimizer (also used in DB2, MySQL, PostgreSQL, DuckDB and others) works <strong>bottom-up</strong>, with <strong>dynamic programming</strong>:</p>
+<ol type="1">
+<li>Choose the best <strong>access path</strong> for each table.</li>
+<li>Enumerate the <strong>join orderings</strong>.</li>
+<li>Pick the lowest-cost one.</li>
+</ol>
+<p>Why dynamic programming? My own intuition: the best plan for joining <span class="math inline">\(\{A, B, C\}\)</span> is built from the best plans for smaller subsets, like <span class="math inline">\(\{A, B\}\)</span> joined with <span class="math inline">\(C\)</span>. So the optimizer solves small sets first and <strong>reuses</strong> their best plan, instead of re-deriving it for every larger order.</p>
+<p>System R also <strong>only considers left-deep trees</strong>: every join’s right input is a base table (in the slide’s figure the left-deep tree on the left of <a href="#fig-trees" class="quarto-xref">Figure&nbsp;4</a>). That shrinks the search space and fits pipelining nicely. The cost is that it may miss a good <em>bushy</em> plan, such as <code>(A ⋈ B) ⋈ (C ⋈ D)</code>.</p>
+<div id="fig-trees" class="quarto-float quarto-figure quarto-figure-center anchored" alt="A left-deep tree where each join takes a base table as its right input, and a bushy tree where two joins feed a third.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-trees-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/join-trees.svg" class="img-fluid figure-img" alt="A left-deep tree where each join takes a base table as its right input, and a bushy tree where two joins feed a third.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-trees-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Left-deep versus bushy join trees over four tables
+</figcaption>
+</figure>
+</div>
+<p><strong>A hack for sort order.</strong> A merge join or <code>ORDER BY</code> benefits if its input is already sorted. So the optimizer can keep not only the cheapest plan for a subset but also the cheapest plan that produces a <strong>useful sort order</strong> (an <em>interesting order</em>), then compare at the end whether adding an explicit sort to the cheapest plan is better.</p>
+<p><strong>Star and snowflake schemas</strong> (one big fact table surrounded by dimension tables) have a special shortcut: join the fact table with the dimensions, ordered from the <strong>most selective</strong> dimension to the least, and skip exploring bushy plans.</p>
+</section>
+<section id="multi-table-queries-top-down-volcano-and-cascades" class="level3">
+<h3 class="anchored" data-anchor-id="multi-table-queries-top-down-volcano-and-cascades">Multi-table queries: top-down (Volcano and Cascades)</h3>
+<p>The alternative is <strong>top-down</strong>: start from the <em>goal</em> (the logical plan, plus any required physical properties like “sorted by ARTIST.ID”) and work downwards, exploring only what could matter. Systems that do it include SQL Server, CockroachDB and Greenplum; the framework is <strong>Volcano / Cascades</strong>.</p>
+<p>Ingredients:</p>
+<ul>
+<li><strong>Rules</strong>: logical-to-logical (<code>JOIN(A, B)</code> to <code>JOIN(B, A)</code>), and logical-to-physical (<code>JOIN</code> to <code>HASH_JOIN</code>).</li>
+<li><strong>Branch and bound</strong>: keep the best total cost found so far; abandon any partial plan whose cost already exceeds it. This prunes huge parts of the search.</li>
+<li><strong>Physical properties as first-class citizens</strong> (like sort order), with <strong>enforcers</strong>: operators the optimizer inserts to <em>make</em> a property true.</li>
+</ul>
+<p>An example of an enforcer: <code>SELECT * FROM xxx WHERE a &gt; 10 ORDER BY b</code>. One option is <code>INDEX_SCAN(xxx.b)</code> with a <code>FILTER</code> on top: the index delivers the rows already sorted by <code>b</code>, so the <code>ORDER BY</code> is satisfied for free. Another is <code>INDEX_SCAN(xxx.a)</code> and then a <code>SORT(b)</code> enforcer on top to produce the requested order. The optimizer costs both and picks one.</p>
+<p>A way to remember the difference (a side-by-side comparison written by me):</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Bottom-up</th>
+<th>Top-down</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Starts from</td>
+<td>The tables</td>
+<td>The final goal</td>
+</tr>
+<tr class="even">
+<td>Technique</td>
+<td>Dynamic programming over subsets</td>
+<td>Rules, memoization, branch and bound</td>
+</tr>
+<tr class="odd">
+<td>Sort order</td>
+<td>Special hack</td>
+<td>Built in, via properties and enforcers</td>
+</tr>
+<tr class="even">
+<td>Examples</td>
+<td>System R, DB2, MySQL, PostgreSQL, DuckDB</td>
+<td>Volcano, Cascades, SQL Server, CockroachDB</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="cost-models-and-statistics" class="level2">
+<h2 class="anchored" data-anchor-id="cost-models-and-statistics">Cost models and statistics</h2>
+<p>The optimizer must <strong>estimate</strong> the cost of a plan <em>without running it</em>. There are two kinds of cost:</p>
+<ul>
+<li><strong>Physical costs</strong>: real hardware: CPU cycles, I/O, cache misses, RAM. These depend on the machine.</li>
+<li><strong>Logical costs</strong>: estimates of the <strong>number of tuples</strong> each operator produces. These depend only on the data and the operator. The cardinality estimate then feeds the physical cost.</li>
+</ul>
+<p>Systems often just use a handful of tuned constants. PostgreSQL’s famous ones, as the slides put it: processing a tuple in memory is about <strong>400x</strong> faster than reading one from disk, and <strong>sequential I/O is about 4x</strong> faster than random I/O.</p>
+<section id="statistics" class="level3">
+<h3 class="anchored" data-anchor-id="statistics">Statistics</h3>
+<p>The database keeps <strong>statistics</strong> per table and column in its catalog: the number of tuples <span class="math inline">\(N_R\)</span>, the number of distinct values <span class="math inline">\(V(A, R)\)</span> of attribute <span class="math inline">\(A\)</span>, and from them the <strong>selection cardinality</strong></p>
+<p><span class="math display">\[SC(A, R) = \frac{N_R}{V(A, R)}\]</span></p>
+<p>(the average number of rows for one value). They are refreshed by an explicit command (<code>ANALYZE</code>) or automatically after enough rows have changed (PostgreSQL’s autovacuum does this). Stale statistics are the reason a plan which worked fine yesterday suddenly crawls.</p>
+<p>A single column is not enough: <strong>correlated columns</strong> need <em>multi-column statistics</em>.</p>
+</section>
+<section id="histograms" class="level3">
+<h3 class="anchored" data-anchor-id="histograms">Histograms</h3>
+<p>Storing the exact count for every value does not scale, so databases store a <strong>histogram</strong>, which is an approximation. Our running data: 45 rows with an <code>age</code> between 1 and 15.</p>
+<div id="fig-hist" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Three bar charts of the same data: exact counts for each value, equi-depth buckets with 12, 12, 9 and 12 rows, and an end-biased histogram with exact counts for five heavy values and one average for the rest.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-hist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="images/histograms.svg" class="img-fluid figure-img" alt="Three bar charts of the same data: exact counts for each value, equi-depth buckets with 12, 12, 9 and 12 rows, and an end-biased histogram with exact counts for five heavy values and one average for the rest.">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-hist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Three ways to store the distribution of age
+</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>Equi-width</strong>: buckets of the same <em>value range</em>. Simple, but a bucket can be very uneven inside.</li>
+<li><strong>Equi-depth</strong>: buckets chosen so each holds about the same <em>number of rows</em>. This is what <a href="#fig-hist" class="quarto-xref">Figure&nbsp;5</a> shows in the middle, and it follows the data much better.</li>
+<li><strong>End-biased</strong>: exact counts for the few most frequent values, plus an average for everything else. Frequent values are the ones that hurt most when mis-estimated.</li>
+</ul>
+<p>(My exact bars in the figure are one dataset I made up to be consistent with the numbers used below.)</p>
+</section>
+<section id="other-summaries" class="level3">
+<h3 class="anchored" data-anchor-id="other-summaries">Other summaries</h3>
+<ul>
+<li><strong>Sketches</strong>: tiny structures that answer one question approximately. A <strong>Count-Min sketch</strong> is a small grid of counters with one hash function per row. To record a value, you add 1 to one counter in <em>every</em> row. To ask “how often did value <span class="math inline">\(x\)</span> occur?”, you look at its counter in every row and take the <strong>minimum</strong>. Collisions can only <em>inflate</em> a counter, so the minimum is the least-polluted estimate; it may overcount but never undercounts. <strong>HyperLogLog</strong> estimates the <strong>number of distinct values</strong>: hash each value, and track the rarest bit pattern seen (e.g.&nbsp;the most leading zeros). Rarer patterns mean more distinct values were probably seen, like needing a lot of coin-flips to see a long streak of heads.</li>
+<li><strong>Sampling</strong>: run the predicate on a sample of the table and scale up. Good for complex predicates, but must be kept fresh.</li>
+<li><strong>Machine-learning</strong> models for cardinality are an active area of research.</li>
+</ul>
+</section>
+<section id="selectivity-estimating-how-many-rows-pass" class="level3">
+<h3 class="anchored" data-anchor-id="selectivity-estimating-how-many-rows-pass">Selectivity: estimating how many rows pass</h3>
+<p>The <strong>selectivity</strong> of a predicate is the fraction of rows that satisfy it. Using the 45-row data above:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Predicate</th>
+<th>Estimate</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>age = 9</code> (exact histogram)</td>
+<td><span class="math inline">\(4 / 45\)</span></td>
+<td>0.088</td>
+</tr>
+<tr class="even">
+<td><code>age = 9</code> (equi-depth, bucket 9..13 holds 9 rows over 5 values)</td>
+<td><span class="math inline">\((9/5) / 45\)</span></td>
+<td>about 0.04</td>
+</tr>
+<tr class="odd">
+<td><code>age &gt;= 7</code></td>
+<td><span class="math inline">\((2 \cdot \frac{12}{3} + 9 + 12) / 45 = 29/45\)</span></td>
+<td>about 0.644</td>
+</tr>
+<tr class="even">
+<td><code>age != 2</code></td>
+<td><span class="math inline">\(1 - \frac{12/5}{45}\)</span></td>
+<td>about 0.95</td>
+</tr>
+</tbody>
+</table>
+<p>In the third row, the bucket <span class="math inline">\([6, 8]\)</span> holds 12 rows over 3 values, so values 7 and 8 contribute <span class="math inline">\(2 \cdot 12/3 = 8\)</span>; the two later buckets contribute <span class="math inline">\(9 + 12 = 21\)</span>.</p>
+<p>Combining predicates needs <strong>independence</strong> (see below):</p>
+<ul>
+<li><code>P1 AND P2</code>: <span class="math inline">\(sel(P_1) \cdot sel(P_2)\)</span>. For example <span class="math inline">\(0.053 \times 0.1 = 0.0053\)</span>.</li>
+<li><code>P1 OR P2</code>: <span class="math inline">\(sel(P_1) + sel(P_2) - sel(P_1) \cdot sel(P_2)\)</span>. For example <span class="math inline">\(0.053 + 0.1 - 0.0053 = 0.1477\)</span>.</li>
+<li><code>NOT P</code>: <span class="math inline">\(1 - sel(P)\)</span>.</li>
+</ul>
+</section>
+<section id="the-three-assumptions" class="level3">
+<h3 class="anchored" data-anchor-id="the-three-assumptions">The three assumptions</h3>
+<p>All of the above rests on three assumptions:</p>
+<ol type="1">
+<li><strong>Uniformity</strong>: values inside a bucket (or all values) are equally likely.</li>
+<li><strong>Independence</strong>: predicates on different columns are independent, so selectivities multiply.</li>
+<li><strong>Inclusion</strong> (containment): for a join, every value of the smaller key set appears in the larger one.</li>
+</ol>
+<p>Assumptions fail in real data. Take <code>make = 'Honda' AND model = 'Accord'</code>. With 10 makes and 100 models, independence says <span class="math inline">\(\frac{1}{10} \times \frac{1}{100} = 0.001\)</span>. But every Accord <em>is</em> a Honda, so the real selectivity is closer to <span class="math inline">\(0.01\)</span>, ten times higher. That is why multi-column statistics exist.</p>
+</section>
+<section id="join-size-estimation" class="level3">
+<h3 class="anchored" data-anchor-id="join-size-estimation">Join size estimation</h3>
+<p>For <span class="math inline">\(R \bowtie_A S\)</span>, a standard estimate is</p>
+<p><span class="math display">\[\text{estSize} \approx \frac{N_R \cdot N_S}{\max\big(V(A, R),\, V(A, S)\big)}\]</span></p>
+<p>My own illustration: if <span class="math inline">\(R\)</span> has 1,000 rows with 100 distinct values of <span class="math inline">\(A\)</span>, and <span class="math inline">\(S\)</span> has 500 rows with 50 distinct values, the estimate is <span class="math inline">\(\frac{1000 \cdot 500}{100} = 5{,}000\)</span> rows.</p>
+<p>Now the uncomfortable part: each join’s estimate is built on the previous estimates. An error early in the plan is carried into the next join, which adds its own error. By the time you are at the top of a multi-join plan, the cardinality estimate can be far off, and the plan that looked cheapest may be the worst one. In the slides’ words, the entire process is <em>fraught with errors</em>. Which is the best argument for keeping statistics fresh, and for the system being willing to adapt.</p>
+</section>
+</section>
+</section>
+<section id="cheat-sheet" class="level1">
+<h1>Cheat sheet</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Topic</th>
+<th>Remember</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Pipeline breaker</td>
+<td>An operator that needs all its input first: hash join build, subquery, <code>ORDER BY</code></td>
+</tr>
+<tr class="even">
+<td>Iterator model</td>
+<td><code>Open/Next/Close</code>, one tuple per call; simple, pipelined, many calls</td>
+</tr>
+<tr class="odd">
+<td>Materialization</td>
+<td>Each operator returns everything at once; OLTP-friendly</td>
+</tr>
+<tr class="even">
+<td>Vectorized</td>
+<td><code>Next()</code> returns a batch; the OLAP standard</td>
+</tr>
+<tr class="odd">
+<td>Pull vs push</td>
+<td>Pull: root drives, easy <code>LIMIT</code>. Push: leaves drive, fused loops</td>
+</tr>
+<tr class="even">
+<td>Zone map</td>
+<td>Per-page min/max/etc.; skip pages that cannot match</td>
+</tr>
+<tr class="odd">
+<td>Multi-index scan</td>
+<td>Get id sets per index, intersect/union, then fetch</td>
+</tr>
+<tr class="even">
+<td>Halloween problem</td>
+<td>An update moves a tuple ahead in the index, so it is updated again; track modified record ids</td>
+</tr>
+<tr class="odd">
+<td>Expression speed-ups</td>
+<td>Compile/JIT, vectorize, constant folding, common sub-expression elimination</td>
+</tr>
+<tr class="even">
+<td>Process model</td>
+<td>Process per worker, thread per worker, or embedded</td>
+</tr>
+<tr class="odd">
+<td>Intra-query parallelism</td>
+<td>Intra-operator (horizontal), inter-operator (pipelined), bushy</td>
+</tr>
+<tr class="even">
+<td>Exchange</td>
+<td>Gather (many to one), distribute (one to many), repartition (many to many)</td>
+</tr>
+<tr class="odd">
+<td>Optimizer</td>
+<td>Transformations + search + cost model</td>
+</tr>
+<tr class="even">
+<td>Always-good rewrites</td>
+<td>Split predicates, predicate and projection pushdown, joins instead of cross products</td>
+</tr>
+<tr class="odd">
+<td>Join orders</td>
+<td><span class="math inline">\(n! \cdot C_{n-1}\)</span> trees, so no brute force</td>
+</tr>
+<tr class="even">
+<td>Bottom-up</td>
+<td>System R: dynamic programming, left-deep trees, interesting orders</td>
+</tr>
+<tr class="odd">
+<td>Top-down</td>
+<td>Cascades: rules, branch and bound, properties and enforcers</td>
+</tr>
+<tr class="even">
+<td>Selectivity</td>
+<td><code>AND</code> multiplies, <code>OR</code> is <span class="math inline">\(a + b - ab\)</span>, <code>NOT</code> is <span class="math inline">\(1 - a\)</span></td>
+</tr>
+<tr class="odd">
+<td>Assumptions</td>
+<td>Uniformity, independence, inclusion, and all can be wrong</td>
+</tr>
+<tr class="even">
+<td>Join size</td>
+<td><span class="math inline">\(N_R N_S / \max(V(A,R), V(A,S))\)</span></td>
+</tr>
+</tbody>
+</table>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li><a href="https://15445.courses.cs.cmu.edu/fall2025/slides/13-queryexecution1.pdf">Query Execution I slides</a></li>
+<li><a href="https://15445.courses.cs.cmu.edu/fall2025/slides/14-queryexecution2.pdf">Query Execution II slides</a></li>
+<li><a href="https://15445.courses.cs.cmu.edu/fall2025/slides/15-optimization1.pdf">Query Optimization I slides</a></li>
+<li><a href="https://15445.courses.cs.cmu.edu/fall2025/slides/16-optimization2.pdf">Query Optimization II slides</a></li>
+<li><a href="https://15445.courses.cs.cmu.edu/">CMU 15-445/645 course site</a></li>
+<li>Previous posts: <a href="../../posts/buffer-pool/index.html">Buffer pool</a>, <a href="../../posts/indexes/index.html">Indexes</a>, <a href="../../posts/sorting-aggregations-joins/index.html">Sorting, aggregations and joins</a></li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/bahbah94\.github\.io\/db-blog\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+          if (!link.classList.contains('no-external-icon')) {
+          }
+        }
+      }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
+          if (lineIds.length > 0) {
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            placeBand(gutterDiv, el, lastEl);
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Notes based on CMU 15-445/645 and other database resources.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>
