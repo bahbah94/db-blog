@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="14">
+  <text x="20" y="24" font-weight="bold" fill="#555">Left-deep tree</text>
+  <text x="450" y="24" font-weight="bold" fill="#555">Bushy tree</text>
+
+  <!-- left-deep lines -->
+  <g stroke="#777" stroke-width="2" fill="none">
+    <line x1="170" y1="72" x2="120" y2="108"/><line x1="170" y1="72" x2="240" y2="106"/>
+    <line x1="120" y1="132" x2="70" y2="168"/><line x1="120" y1="132" x2="190" y2="166"/>
+    <line x1="70" y1="192" x2="30" y2="226"/><line x1="70" y1="192" x2="110" y2="226"/>
+  </g>
+  <g stroke="#b8860b" stroke-width="2" fill="#fff6d6">
+    <rect x="146" y="48" width="48" height="24" rx="5"/><rect x="96" y="108" width="48" height="24" rx="5"/><rect x="46" y="168" width="48" height="24" rx="5"/>
+  </g>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="220" y="106" width="40" height="28" rx="4"/><rect x="170" y="166" width="40" height="28" rx="4"/>
+    <rect x="10" y="226" width="40" height="28" rx="4"/><rect x="90" y="226" width="40" height="28" rx="4"/>
+  </g>
+  <g text-anchor="middle" font-size="12" font-weight="bold">
+    <text x="170" y="65">JOIN</text><text x="120" y="125">JOIN</text><text x="70" y="185">JOIN</text>
+    <text x="240" y="125">D</text><text x="190" y="185">C</text><text x="30" y="245">A</text><text x="110" y="245">B</text>
+  </g>
+
+  <!-- bushy lines -->
+  <g stroke="#777" stroke-width="2" fill="none">
+    <line x1="600" y1="72" x2="540" y2="118"/><line x1="600" y1="72" x2="660" y2="118"/>
+    <line x1="540" y1="142" x2="510" y2="206"/><line x1="540" y1="142" x2="570" y2="206"/>
+    <line x1="660" y1="142" x2="630" y2="206"/><line x1="660" y1="142" x2="690" y2="206"/>
+  </g>
+  <g stroke="#b8860b" stroke-width="2" fill="#fff6d6">
+    <rect x="576" y="48" width="48" height="24" rx="5"/><rect x="516" y="118" width="48" height="24" rx="5"/><rect x="636" y="118" width="48" height="24" rx="5"/>
+  </g>
+  <g stroke="#4a78c2" stroke-width="2" fill="#e6f0ff">
+    <rect x="490" y="206" width="40" height="28" rx="4"/><rect x="550" y="206" width="40" height="28" rx="4"/>
+    <rect x="610" y="206" width="40" height="28" rx="4"/><rect x="670" y="206" width="40" height="28" rx="4"/>
+  </g>
+  <g text-anchor="middle" font-size="12" font-weight="bold">
+    <text x="600" y="65">JOIN</text><text x="540" y="135">JOIN</text><text x="660" y="135">JOIN</text>
+    <text x="510" y="225">A</text><text x="570" y="225">B</text><text x="630" y="225">C</text><text x="690" y="225">D</text>
+  </g>
+
+  <text x="20" y="282" font-size="13" fill="#444">Every join takes a base table as its right input.</text>
+  <text x="450" y="282" font-size="13" fill="#444">Two joins can run independently, then be joined.</text>
+</svg>
